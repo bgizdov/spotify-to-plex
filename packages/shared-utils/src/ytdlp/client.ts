@@ -28,9 +28,15 @@ export class YtdlpClient {
      */
     async health(): Promise<YtdlpHealthResponse> {
         try {
+            console.log('[YtdlpClient] health() - Calling POST /check_permissions');
+            console.log('[YtdlpClient] health() - API URL:', this.apiUrl);
+
             const { data } = await this.client.post('/check_permissions', {
                 permissions: ['get_audio']
             });
+
+            console.log('[YtdlpClient] health() - Response data:', data);
+
             return {
                 status: 'healthy',
                 version: data.version || 'unknown',
@@ -39,7 +45,13 @@ export class YtdlpClient {
                 uptime_seconds: 0,
             };
         } catch (error) {
-            throw new Error(`Failed to connect to yt-dlp-host at ${this.apiUrl}: ${error}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('[YtdlpClient] health() - Error:', errorMessage);
+            if (error instanceof Error && 'response' in error) {
+                console.error('[YtdlpClient] health() - Response status:', (error as any).response?.status);
+                console.error('[YtdlpClient] health() - Response data:', (error as any).response?.data);
+            }
+            throw new Error(`Failed to connect to yt-dlp-host at ${this.apiUrl}: ${errorMessage}`);
         }
     }
 

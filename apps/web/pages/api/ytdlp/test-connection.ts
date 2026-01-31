@@ -8,7 +8,10 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
         try {
             const { api_url, api_key } = req.body;
 
+            console.log('[YT-DLP Test] Received request:', { api_url, has_api_key: !!api_key });
+
             if (!api_url) {
+                console.log('[YT-DLP Test] Missing API URL');
                 return res.status(200).json({
                     success: false,
                     message: 'API URL is required'
@@ -16,6 +19,7 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
             }
 
             if (!api_key) {
+                console.log('[YT-DLP Test] Missing API key');
                 return res.status(200).json({
                     success: false,
                     message: 'API key is required'
@@ -23,10 +27,13 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
             }
 
             // Test connection to YT-DLP server
+            console.log('[YT-DLP Test] Creating YtdlpClient...');
             const client = new YtdlpClient(api_url, api_key);
 
+            console.log('[YT-DLP Test] Calling health() endpoint...');
             const health = await client.health();
 
+            console.log('[YT-DLP Test] Health check successful:', health);
             res.status(200).json({
                 success: true,
                 message: 'Connected successfully to YT-DLP',
@@ -34,10 +41,16 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
             });
 
         } catch (error) {
-            console.error('YT-DLP connection test failed:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.error('[YT-DLP Test] Connection failed:', errorMessage);
+            console.error('[YT-DLP Test] Full error:', error);
             res.status(200).json({
                 success: false,
-                message: error instanceof Error ? error.message : 'Connection failed'
+                message: errorMessage,
+                debug: {
+                    error_type: error instanceof Error ? error.constructor.name : typeof error,
+                    timestamp: new Date().toISOString()
+                }
             });
         }
     });
