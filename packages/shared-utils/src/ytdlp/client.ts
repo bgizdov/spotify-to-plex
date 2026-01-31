@@ -24,12 +24,20 @@ export class YtdlpClient {
     }
 
     /**
-     * Check health status of yt-dlp-host
+     * Check health status of yt-dlp-host by validating API key
      */
     async health(): Promise<YtdlpHealthResponse> {
         try {
-            const { data } = await this.client.get<YtdlpHealthResponse>('/health');
-            return data;
+            const { data } = await this.client.post('/check_permissions', {
+                permissions: ['get_audio']
+            });
+            return {
+                status: 'healthy',
+                version: data.version || 'unknown',
+                active_downloads: 0,
+                queue_size: 0,
+                uptime_seconds: 0,
+            };
         } catch (error) {
             throw new Error(`Failed to connect to yt-dlp-host at ${this.apiUrl}: ${error}`);
         }
