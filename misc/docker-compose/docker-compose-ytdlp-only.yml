@@ -1,0 +1,156 @@
+version: '3.8'
+
+# Standalone yt-dlp-host Docker Compose Configuration
+# Use this to run ONLY the yt-dlp-host service
+#
+# For integrated setup with spotify-to-plex, use docker-compose.yml instead
+
+services:
+  # yt-dlp-host: YouTube/Music downloader with REST API
+  ytdlp-api:
+    image: vasysik/yt-dlp-host:latest
+    container_name: ytdlp-api
+
+    # Ports
+    ports:
+      # Web API port (exposed for external access and debugging)
+      - "${YTDLP_API_PORT:-5000}:5000"
+
+    environment:
+      # Server Configuration
+      HOST: "0.0.0.0"
+      PORT: "5000"
+      LOG_LEVEL: "INFO"
+
+      # API Authentication
+      # Generate secure key: openssl rand -hex 32
+      API_KEY: "${YTDLP_API_KEY}"
+
+      # yt-dlp Audio Settings
+      # Format options: best, worst, bestaudio, worstaudio, m4a, opus, vorbis, wav
+      AUDIO_FORMAT: "bestaudio"
+
+      # Container format for output
+      # Options: mp3, m4a, vorbis, opus, wav, webm
+      AUDIO_CONTAINER: "mp3"
+
+      # Enable post-processing (ffmpeg conversion)
+      POSTPROCESSING_ENABLED: "true"
+
+      # Download Performance
+      # Number of concurrent downloads allowed
+      MAX_CONCURRENT_DOWNLOADS: "${YTDLP_MAX_CONCURRENT:-5}"
+
+      # Timeout per download in seconds (0 = unlimited)
+      DOWNLOAD_TIMEOUT: "${YTDLP_DOWNLOAD_TIMEOUT:-600}"
+
+      # Connection Settings
+      # Socket timeout in seconds
+      SOCKET_TIMEOUT: "30"
+
+      # Retry count for failed downloads
+      YTDLP_RETRIES: "3"
+
+      # Optional: Custom yt-dlp arguments
+      # Example: "--socket-timeout 30 --external-downloader aria2c"
+      YTDLP_CUSTOM_ARGS: "${YTDLP_CUSTOM_ARGS:-}"
+
+      # File Organization
+      # Output directory structure
+      # %(artist)s - Artist name
+      # %(album)s - Album name
+      # %(title)s - Song title
+      OUTPUT_TEMPLATE: "${YTDLP_OUTPUT_TEMPLATE:-%(artist)s/%(album)s/%(title)s.%(ext)s}"
+
+      # Cleanup Settings
+      # Delete temporary files after completion
+      CLEANUP_TEMP_FILES: "true"
+
+      # Keep original downloaded file before conversion
+      KEEP_ORIGINAL: "false"
+
+    volumes:
+      # Downloads directory (mounted from host)
+      # All downloaded files will be saved here
+      # Path on host: ${PLEX_MUSIC_PATH} (e.g., /mnt/plex/Music)
+      # Path in container: /downloads
+      - "${PLEX_MUSIC_PATH:-/mnt/plex/Music}:/downloads"
+
+      # Temporary files directory
+      # Used for intermediate processing
+      - ytdlp-temp:/tmp
+
+      # Cache directory
+      # Stores yt-dlp cache for faster lookups
+      - ytdlp-cache:/home/ytdlp/.cache
+
+      # Cookies file (optional)
+      # Useful if YouTube requires login
+      # - ./cookies.txt:/home/ytdlp/cookies.txt:ro
+
+    # Always restart unless explicitly stopped
+    restart: unless-stopped
+
+    # Networking
+    networks:
+      - spotify-to-plex-network
+
+    # Health check configuration
+    healthcheck:
+      # Check API endpoint with authentication
+      test:
+        - CMD
+        - curl
+        - -f
+        - -H
+        - "X-API-Key: ${YTDLP_API_KEY}"
+        - "http://localhost:5000/health"
+
+      # Check every 30 seconds
+      interval: 30s
+
+      # Wait 10 seconds for response
+      timeout: 10s
+
+      # Retry 3 times before marking unhealthy
+      retries: 3
+
+      # Wait 10 seconds before first check
+      start_period: 10s
+
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          # Max CPU cores
+          cpus: '2'
+          # Max memory
+          memory: 2G
+        reservations:
+          # Reserved CPU cores
+          cpus: '1'
+          # Reserved memory
+          memory: 1G
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Volumes for persistent data
+volumes:
+  # Temporary files during downloads
+  ytdlp-temp:
+    driver: local
+
+  # yt-dlp cache (speeds up lookups)
+  ytdlp-cache:
+    driver: local
+
+# Network configuration
+networks:
+  # Network name must match if used with spotify-to-plex compose
+  spotify-to-plex-network:
+    driver: bridge
