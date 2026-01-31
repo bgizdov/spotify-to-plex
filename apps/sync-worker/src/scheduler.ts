@@ -3,9 +3,9 @@ import { spawn } from 'node:child_process';
 import { getLidarrSettings } from '@spotify-to-plex/plex-config/functions/getLidarrSettings';
 import { getSlskdSettings } from '@spotify-to-plex/plex-config/functions/getSlskdSettings';
 
-const SYNC_SCHEDULE = '0 2 * * *'; // Every day at 02:00
-const LIDARR_SYNC_SCHEDULE = '0 4 * * *'; // Every day at 04:00
-const SLSKD_SYNC_SCHEDULE = '0 3 * * *'; // Every day at 03:00
+const SYNC_SCHEDULE = '0 1 * * *'; // Every day at 01:00
+const LIDARR_SYNC_SCHEDULE = '0 7 * * *'; // Every day at 07:00 (6 hours after main sync)
+const SLSKD_SYNC_SCHEDULE = '0 6 * * *'; // Every day at 06:00 (5 hours after main sync)
 const MQTT_SYNC_SCHEDULE = '0 * * * *'; // Every hour
 
 console.log('🚀 Sync scheduler started');

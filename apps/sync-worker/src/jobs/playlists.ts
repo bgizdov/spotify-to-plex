@@ -70,15 +70,19 @@ export async function syncPlaylists() {
                 days = 0;
 
             try {
-
+                // Check if sync interval has elapsed (for Plex playlist updates)
                 const nextSyncAfter = new Date((itemLog.end || 0) + (days * 24 * 60 * 60 * 1000));
-                if (nextSyncAfter.getTime() > Date.now() && !force) {
-                    console.log(`Next sync on: ${nextSyncAfter.toString()}`)
-                    continue;
+                const shouldUpdatePlex = nextSyncAfter.getTime() <= Date.now() || force;
+
+                if (!shouldUpdatePlex) {
+                    console.log(`---- Scanning ${title} (Plex update skipped, next sync: ${nextSyncAfter.toString()}) ----`)
+                } else {
+                    console.log(`---- Syncing ${title} ----`)
                 }
 
                 //////////////////////////////////
                 // Load Spotify Data
+                // Always load to collect missing tracks for SLSKD/Lidarr
                 //////////////////////////////////
                 const data = await loadSpotifyData(uri, user)
                 if (!data) {
@@ -86,7 +90,6 @@ export async function syncPlaylists() {
                     continue;
                 }
 
-                console.log(`---- Syncing ${data.title} ----`)
                 //////////////////////////////////
                 // Load Plex Playlists if it exists
                 //////////////////////////////////
@@ -100,7 +103,7 @@ export async function syncPlaylists() {
 
                     const url = getAPIUrl(settings.uri, `/playlists`);
                     const result = await handleOneRetryAttempt<GetPlaylistResponse>(() => AxiosRequest.get(url, settings.token));
-                
+
                     // eslint-disable-next-line unicorn/consistent-destructuring
                     plexPlaylist = result.data.MediaContainer.Metadata.find((item: Playlist) => item.ratingKey == foundPlaylist.plex)
                 }
@@ -138,84 +141,86 @@ export async function syncPlaylists() {
                 }
 
                 ////////////
-                // Put plex playlist
+                // Put plex playlist (only if sync interval has elapsed)
                 ////////////
-                await putPlexPlaylist(id, plexPlaylist, result, title, data.image)
+                if (shouldUpdatePlex) {
+                    await putPlexPlaylist(id, plexPlaylist, result, title, data.image)
+                }
 
                 ////////////
-                // Handle missing tracks
+                // Handle missing tracks (always collect for SLSKD/Lidarr)
                 ////////////
                 const missingTracks = toSearchItems.filter(item => {
                     const { title: trackTitle, artists: trackArtists } = item;
 
                     return result.some(track => track.title == trackTitle && trackArtists.indexOf(track.artist) > - 1 && track.result.length == 0)
                 })
-                if (missingTracks.length == 0) {
-                    logComplete(itemLog)
-                    continue;
+
+                if (missingTracks.length > 0) {
+                    console.log(`Missing ${missingTracks.length} tracks`)
+                    missingTracks.forEach(item => {
+                        const id = item.id.indexOf(":") > -1 ? item.id.split(":")[2] : item.id;
+                        if (typeof id === 'string' && !missingSpotifyTracks.includes(id))
+                            missingSpotifyTracks.push(id)
+                    })
+
+                    const tidalTracks = await findMissingTidalTracks(missingTracks)
+                    tidalTracks.forEach(item => {
+                        if (!missingTidalTracks.includes(item.tidal_id))
+                            missingTidalTracks.push(item.tidal_id)
+                    })
+
+                    // Collect unique albums for Lidarr
+                    missingTracks.forEach(track => {
+                        // Skip tracks with unknown album_id
+                        if (track.album_id === 'unknown') {
+                            console.log(`⚠️  Skipping track with unknown album_id: ${track.title} by ${track.artists[0]}`);
+
+                            return;
+                        }
+
+                        const artist = track.artists[0] || 'Unknown Artist';
+                        const album = track.album || 'Unknown Album';
+                        const key = `${artist}|${album}`;
+
+                        // Check if album already exists in the array
+                        if (!missingAlbumsLidarr.some(item => `${item.artist_name}|${item.album_name}` === key)) {
+                            missingAlbumsLidarr.push({
+                                artist_name: artist,
+                                album_name: album,
+                                spotify_album_id: track.album_id
+                            });
+                        }
+                    });
+
+                    // Collect track data for SLSKD
+                    missingTracks.forEach(track => {
+                        const spotifyId = track.id.indexOf(":") > -1 ? track.id.split(":")[2] : track.id;
+                        const artist = track.artists[0] || 'Unknown Artist';
+                        const trackName = track.title || 'Unknown Track';
+                        const album = track.album || 'Unknown Album';
+                        const key = `${spotifyId}`;
+
+                        // Check if track already exists in the array
+                        if (spotifyId && !missingTracksSlskd.some(item => item.spotify_id === key)) {
+                            missingTracksSlskd.push({
+                                spotify_id: spotifyId,
+                                artist_name: artist,
+                                track_name: trackName,
+                                album_name: album
+                            });
+                        }
+                    });
                 }
 
-                console.log(`Missing ${missingTracks.length} tracks`)
-                missingTracks.forEach(item => {
-                    const id = item.id.indexOf(":") > -1 ? item.id.split(":")[2] : item.id;
-                    if (typeof id === 'string' && !missingSpotifyTracks.includes(id))
-                        missingSpotifyTracks.push(id)
-                })
-
-                const tidalTracks = await findMissingTidalTracks(missingTracks)
-                tidalTracks.forEach(item => {
-                    if (!missingTidalTracks.includes(item.tidal_id))
-                        missingTidalTracks.push(item.tidal_id)
-                })
-
-                // Collect unique albums for Lidarr
-                missingTracks.forEach(track => {
-                // Skip tracks with unknown album_id
-                    if (track.album_id === 'unknown') {
-                        console.log(`⚠️  Skipping track with unknown album_id: ${track.title} by ${track.artists[0]}`);
-
-                        return;
-                    }
-
-                    const artist = track.artists[0] || 'Unknown Artist';
-                    const album = track.album || 'Unknown Album';
-                    const key = `${artist}|${album}`;
-
-                    // Check if album already exists in the array
-                    if (!missingAlbumsLidarr.some(item => `${item.artist_name}|${item.album_name}` === key)) {
-                        missingAlbumsLidarr.push({
-                            artist_name: artist,
-                            album_name: album,
-                            spotify_album_id: track.album_id
-                        });
-                    }
-                });
-
-                // Collect track data for SLSKD
-                missingTracks.forEach(track => {
-                    const spotifyId = track.id.indexOf(":") > -1 ? track.id.split(":")[2] : track.id;
-                    const artist = track.artists[0] || 'Unknown Artist';
-                    const trackName = track.title || 'Unknown Track';
-                    const album = track.album || 'Unknown Album';
-                    const key = `${spotifyId}`;
-
-                    // Check if track already exists in the array
-                    if (spotifyId && !missingTracksSlskd.some(item => item.spotify_id === key)) {
-                        missingTracksSlskd.push({
-                            spotify_id: spotifyId,
-                            artist_name: artist,
-                            track_name: trackName,
-                            album_name: album
-                        });
-                    }
-                });
-
                 /////////////////////////////
-                // Store logs
+                // Store logs (only mark complete if Plex was updated)
                 /////////////////////////////
-                logComplete(itemLog)
+                if (shouldUpdatePlex) {
+                    logComplete(itemLog)
+                }
 
-                // Store missing tracks
+                // Store missing tracks (always update these files)
                 writeFileSync(join(getStorageDir(), 'missing_tracks_spotify.txt'), missingSpotifyTracks.map(id => `https://open.spotify.com/track/${id}`).join('\n'))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_tidal.txt'), missingTidalTracks.map(id => `https://tidal.com/browse/track/${id}`).join('\n'))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
