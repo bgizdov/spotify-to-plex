@@ -28,6 +28,9 @@
       "path": "./packages/plex-helpers"
     },
     {
+      "path": "./packages/slskd-music-search"
+    },
+    {
       "path": "./apps/sync-worker"
     },
     {
@@ -57,7 +60,9 @@
       "@spotify-to-plex/plex-config": ["./packages/plex-config/src"],
       "@spotify-to-plex/plex-config/*": ["./packages/plex-config/src/*"],
       "@spotify-to-plex/plex-helpers": ["./packages/plex-helpers/src"],
-      "@spotify-to-plex/plex-helpers/*": ["./packages/plex-helpers/src/*"]
+      "@spotify-to-plex/plex-helpers/*": ["./packages/plex-helpers/src/*"],
+      "@spotify-to-plex/slskd-music-search": ["./packages/slskd-music-search/src"],
+      "@spotify-to-plex/slskd-music-search/*": ["./packages/slskd-music-search/src/*"]
     }
   },
   "ts-node": {

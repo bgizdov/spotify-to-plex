@@ -59,14 +59,19 @@ export async function syncAlbums() {
             if (isNaN(days))
                 days = 0;
 
+            // Check if sync interval has elapsed (for cache updates)
             const nextSyncAfter = new Date((itemLog.end || 0) + (days * 24 * 60 * 60 * 1000));
-            if (nextSyncAfter.getTime() > Date.now() && !force) {
-                console.log(`Next sync on: ${nextSyncAfter.toDateString()}`)
-                continue;
+            const shouldUpdateCache = nextSyncAfter.getTime() <= Date.now() || force;
+
+            if (!shouldUpdateCache) {
+                console.log(`---- Scanning ${title} (cache update skipped, next sync: ${nextSyncAfter.toDateString()}) ----`)
+            } else {
+                console.log(`---- Syncing ${title} ----`)
             }
 
             //////////////////////////////////
             // Load Spotify Data
+            // Always load to collect missing tracks for SLSKD/Lidarr
             //////////////////////////////////
             const data = await loadSpotifyData(uri, user)
             if (!data) {
@@ -100,14 +105,19 @@ export async function syncAlbums() {
                 return result.some((track: SearchResponse) => track.title == trackTitle && trackArtists.indexOf(track.artist) > - 1 && track.result.length == 0)
             })
 
-            if (!result.some((item: SearchResponse) => item.result.length == 0)) {
-                logComplete(itemLog);
+            // Check if album is complete (no missing tracks)
+            const albumComplete = !result.some((item: SearchResponse) => item.result.length == 0);
 
-                // Store album id
-                add(result, 'plex', { id: data.id })
+            if (albumComplete) {
+                if (shouldUpdateCache) {
+                    logComplete(itemLog);
+                    // Store album id
+                    add(result, 'plex', { id: data.id })
+                }
                 continue;
             }
 
+            // Album has missing tracks - always collect for SLSKD/Lidarr
             if (!missingSpotifyAlbums.includes(data.id))
                 missingSpotifyAlbums.push(data.id)
 
@@ -120,7 +130,7 @@ export async function syncAlbums() {
 
             // Collect unique albums for Lidarr
             missingTracks.forEach(track => {
-            // Skip tracks with unknown album_id (defensive check)
+                // Skip tracks with unknown album_id (defensive check)
                 if (track.album_id === 'unknown') {
                     console.log(`⚠️  Skipping track with unknown album_id: ${track.title} by ${track.artists[0]}`);
 
@@ -162,11 +172,13 @@ export async function syncAlbums() {
             });
 
             /////////////////////////////
-            // Store logs
+            // Store logs (only mark complete if cache was updated)
             /////////////////////////////
-            logComplete(itemLog)
+            if (shouldUpdateCache) {
+                logComplete(itemLog)
+            }
 
-            // Store the missing albums and tracks
+            // Store the missing albums and tracks (always update these files)
             writeFileSync(join(getStorageDir(), 'missing_albums_spotify.txt'), missingSpotifyAlbums.map(id => `https://open.spotify.com/album/${id}`).join('\n'))
             writeFileSync(join(getStorageDir(), 'missing_albums_tidal.txt'), missingTidalAlbums.map(id => `https://tidal.com/browse/album/${id}`).join('\n'))
             writeFileSync(join(getStorageDir(), 'missing_albums_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))

@@ -46,6 +46,9 @@
     },
     {
       "path": "../../packages/plex-helpers"
+    },
+    {
+      "path": "../../packages/slskd-music-search"
     }
   ]
 }

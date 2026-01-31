@@ -1,4 +1,3 @@
-/* eslint-disable max-depth */
 import { AxiosRequest } from "@spotify-to-plex/http-client/AxiosRequest";
 import { getAPIUrl } from "@spotify-to-plex/shared-utils/utils/getAPIUrl";
 import { getStorageDir } from "@spotify-to-plex/shared-utils/utils/getStorageDir";
@@ -71,15 +70,19 @@ export async function syncPlaylists() {
                 days = 0;
 
             try {
-
+                // Check if sync interval has elapsed (for Plex playlist updates)
                 const nextSyncAfter = new Date((itemLog.end || 0) + (days * 24 * 60 * 60 * 1000));
-                if (nextSyncAfter.getTime() > Date.now() && !force) {
-                    console.log(`Next sync on: ${nextSyncAfter.toString()}`)
-                    continue;
+                const shouldUpdatePlex = nextSyncAfter.getTime() <= Date.now() || force;
+
+                if (!shouldUpdatePlex) {
+                    console.log(`---- Scanning ${title} (Plex update skipped, next sync: ${nextSyncAfter.toString()}) ----`)
+                } else {
+                    console.log(`---- Syncing ${title} ----`)
                 }
 
                 //////////////////////////////////
                 // Load Spotify Data
+                // Always load to collect missing tracks for SLSKD/Lidarr
                 //////////////////////////////////
                 const data = await loadSpotifyData(uri, user)
                 if (!data) {
@@ -101,7 +104,7 @@ export async function syncPlaylists() {
 
                     const url = getAPIUrl(settings.uri, `/playlists`);
                     const result = await handleOneRetryAttempt<GetPlaylistResponse>(() => AxiosRequest.get(url, settings.token));
-                
+
                     // eslint-disable-next-line unicorn/consistent-destructuring
                     plexPlaylist = result.data.MediaContainer.Metadata.find((item: Playlist) => item.ratingKey == foundPlaylist.plex)
                 }
@@ -139,12 +142,14 @@ export async function syncPlaylists() {
                 }
 
                 ////////////
-                // Put plex playlist
+                // Put plex playlist (only if sync interval has elapsed)
                 ////////////
-                await putPlexPlaylist(id, plexPlaylist, result, title, data.image)
+                if (shouldUpdatePlex) {
+                    await putPlexPlaylist(id, plexPlaylist, result, title, data.image)
+                }
 
                 ////////////
-                // Handle missing tracks
+                // Handle missing tracks (always collect for SLSKD/Lidarr)
                 ////////////
                 const missingTracks = toSearchItems.filter(item => {
                     const { title: trackTitle, artists: trackArtists } = item;
@@ -196,6 +201,7 @@ export async function syncPlaylists() {
                 // Collect track data for SLSKD
                 missingTracks.forEach(track => {
                     if (!track.id) return; // Skip tracks with null id
+
                     const spotifyId = track.id.indexOf(":") > -1 ? track.id.split(":")[2] : track.id;
                     const artist = track.artists[0] || 'Unknown Artist';
                     const trackName = track.title || 'Unknown Track';
@@ -214,11 +220,13 @@ export async function syncPlaylists() {
                 });
 
                 /////////////////////////////
-                // Store logs
+                // Store logs (only mark complete if Plex was updated)
                 /////////////////////////////
-                logComplete(itemLog)
+                if (shouldUpdatePlex) {
+                    logComplete(itemLog)
+                }
 
-                // Store missing tracks
+                // Store missing tracks (always update these files)
                 writeFileSync(join(getStorageDir(), 'missing_tracks_spotify.txt'), missingSpotifyTracks.map(id => `https://open.spotify.com/track/${id}`).join('\n'))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_tidal.txt'), missingTidalTracks.map(id => `https://tidal.com/browse/track/${id}`).join('\n'))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))

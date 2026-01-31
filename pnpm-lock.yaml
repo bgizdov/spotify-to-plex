@@ -136,6 +136,9 @@ importers:
       '@spotify-to-plex/http-client':
         specifier: workspace:*
         version: link:../../packages/http-client
+      '@spotify-to-plex/music-search':
+        specifier: workspace:*
+        version: link:../../packages/music-search
       '@spotify-to-plex/plex-config':
         specifier: workspace:*
         version: link:../../packages/plex-config
@@ -151,6 +154,9 @@ importers:
       '@spotify-to-plex/shared-utils':
         specifier: workspace:*
         version: link:../../packages/shared-utils
+      '@spotify-to-plex/slskd-music-search':
+        specifier: workspace:*
+        version: link:../../packages/slskd-music-search
       '@spotify-to-plex/tidal-music-search':
         specifier: workspace:*
         version: link:../../packages/tidal-music-search
