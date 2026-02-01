@@ -45,6 +45,12 @@ export default function ExportMissingTracks(props: Props) {
     }, []);
 
     ///////////////////////////////////////////////
+    // YT-DLP
+    ///////////////////////////////////////////////
+    const [ytdlpEnabled, setYtdlpEnabled] = useState(false);
+    const [sendingToYtdlp, setSendingToYtdlp] = useState(false);
+
+    ///////////////////////////////////////////////
     // Pagination
     ///////////////////////////////////////////////
     const pageSize = 10;
@@ -168,7 +174,7 @@ export default function ExportMissingTracks(props: Props) {
         // Sequential processing through refs
         for (let i = 0; i < trackRefs.current.length; i++) {
             const ref = trackRefs.current[i];
-            if (ref) 
+            if (ref)
                 await ref.sendToSlskd();
         }
 
@@ -178,6 +184,23 @@ export default function ExportMissingTracks(props: Props) {
     const onSendPageToSlskdClick = useCallback(() => {
         handleSendPageToSlskd();
     }, [handleSendPageToSlskd]);
+
+    const handleSendPageToYtdlp = useCallback(async () => {
+        setSendingToYtdlp(true);
+
+        // Sequential processing through refs
+        for (let i = 0; i < trackRefs.current.length; i++) {
+            const ref = trackRefs.current[i];
+            if (ref)
+                await ref.sendToYtdlp();
+        }
+
+        setSendingToYtdlp(false);
+    }, []);
+
+    const onSendPageToYtdlpClick = useCallback(() => {
+        handleSendPageToYtdlp();
+    }, [handleSendPageToYtdlp]);
 
     // Extract unique albums for Lidarr
     const uniqueAlbums = useMemo(() => {
@@ -255,6 +278,14 @@ export default function ExportMissingTracks(props: Props) {
         });
     }, []);
 
+    // Check if YT-DLP is enabled
+    useEffect(() => {
+        errorBoundary(async () => {
+            const result = await axios.get('/api/ytdlp/settings');
+            setYtdlpEnabled(result.data.enabled);
+        });
+    }, []);
+
     const hasTidalTracks = tidalTracks.some(item => item.tidal_ids && item.tidal_ids.length > 0)
 
     return (<>
@@ -308,6 +339,12 @@ export default function ExportMissingTracks(props: Props) {
                                             {sendingToSlskd ? 'Sending...' : `Send Page to SLSKD (${visibleTracks.length} tracks)`}
                                         </Button>
                                     )}
+
+                                    {!!ytdlpEnabled && visibleTracks.length > 0 && (
+                                        <Button variant="outlined" color="success" onClick={onSendPageToYtdlpClick} disabled={sendingToYtdlp}>
+                                            {sendingToYtdlp ? 'Sending...' : `Send Page to YT-DLP (${visibleTracks.length} tracks)`}
+                                        </Button>
+                                    )}
                                 </>
                             }
                         </Box>
@@ -349,7 +386,7 @@ export default function ExportMissingTracks(props: Props) {
                             {visibleTracks.map((item, index) => {
                                 const tidalTrack = tidalTracks.find(tidalTrack => tidalTrack.id === item.id);
 
-                                return <MissingTrack key={item.id} ref={setTrackRefs(index)} track={item} tidalTrack={tidalTrack} slskdEnabled={slskdEnabled} />;
+                                return <MissingTrack key={item.id} ref={setTrackRefs(index)} track={item} tidalTrack={tidalTrack} slskdEnabled={slskdEnabled} ytdlpEnabled={ytdlpEnabled} />;
                             })}
 
                             {totalPages > 1 &&
