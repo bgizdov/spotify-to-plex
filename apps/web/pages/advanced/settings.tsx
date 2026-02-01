@@ -1,6 +1,7 @@
 import Logo from "@/components/Logo";
 import LidarrSettings from "@/components/LidarrSettings";
 import SlskdSettings from "@/components/SlskdSettings";
+import YtdlpSettings from "@/components/YtdlpSettings";
 import SpotifyNavigation from "@/components/SpotifyNavigation";
 import MainLayout from "@/layouts/MainLayout";
 import { Container, Paper, Typography, Divider } from '@mui/material';
@@ -34,6 +35,10 @@ const Page: NextPage = () => {
                         <Divider sx={{ my: 4 }} />
 
                         <SlskdSettings />
+
+                        <Divider sx={{ my: 4 }} />
+
+                        <YtdlpSettings />
                     </Paper>
                 </Container>
             </MainLayout>
