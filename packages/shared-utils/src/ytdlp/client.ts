@@ -4,6 +4,7 @@ import {
     YtdlpDownloadResponse,
     YtdlpStatusResponse,
     YtdlpHealthResponse,
+    YtdlpSearchResponse,
 } from './types';
 
 export class YtdlpClient {
@@ -72,6 +73,17 @@ export class YtdlpClient {
     async status(taskId: string): Promise<YtdlpStatusResponse> {
         const { data } = await this.client.get<YtdlpStatusResponse>(
             `/status/${taskId}`
+        );
+        return data;
+    }
+
+    /**
+     * Search YouTube for a video matching the query
+     */
+    async search(query: string): Promise<YtdlpSearchResponse> {
+        const { data } = await this.client.post<YtdlpSearchResponse>(
+            '/search',
+            { query }
         );
         return data;
     }

@@ -4,7 +4,6 @@ import { getStorageDir } from "@spotify-to-plex/shared-utils/utils/getStorageDir
 import { SlskdSyncLog } from "@spotify-to-plex/shared-types/slskd/SlskdSyncLog";
 import { SlskdTrackData } from "@spotify-to-plex/shared-types/slskd/SlskdTrackData";
 import { YtdlpClient } from "@spotify-to-plex/shared-utils/ytdlp/client";
-import { downloadTrack } from "@spotify-to-plex/shared-utils/ytdlp/downloadTrack";
 import { waitForDownloadComplete } from "@spotify-to-plex/shared-utils/ytdlp/waitForDownloadComplete";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -128,10 +127,23 @@ export async function syncYtdlp() {
                             );
                         }
 
-                        // Initiate download with custom filename
-                        const downloadResp = await downloadTrack(client, track, {
+                        // Search for the video
+                        const searchQuery = `${track.artist_name} - ${track.track_name}`;
+                        console.log(`[${track.artist_name} - ${track.track_name}] Searching YouTube...`);
+
+                        const searchResp = await client.search(searchQuery);
+
+                        if (!searchResp.success || !searchResp.url) {
+                            throw new Error(searchResp.message || "No video found on YouTube");
+                        }
+
+                        console.log(`[${track.artist_name} - ${track.track_name}] Found video: ${searchResp.title}`);
+
+                        // Initiate download with the found video URL
+                        const downloadResp = await client.download({
+                            url: searchResp.url,
                             audio_format: settings.audio_format,
-                            audio_container: settings.audio_container,
+                            output_format: settings.audio_container,
                             filename: `${track.artist_name} - ${track.track_name}`, // Filename without extension
                         });
 

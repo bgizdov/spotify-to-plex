@@ -1,5 +1,4 @@
 import { YtdlpClient } from "@spotify-to-plex/shared-utils/ytdlp/client";
-import { downloadTrack } from "@spotify-to-plex/shared-utils/ytdlp/downloadTrack";
 import { getYtdlpSettings } from "@spotify-to-plex/plex-config/functions/getYtdlpSettings";
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createRouter } from 'next-connect';
@@ -49,22 +48,31 @@ const router = createRouter<NextApiRequest, NextApiResponse<SendTrackResponse>>(
                 });
             }
 
-            // Create client and download track
+            // Create client
             console.log('[YT-DLP Send] Creating YtdlpClient...');
             const client = new YtdlpClient(settings.api_url, settings.api_key);
 
-            // Create track data for download
-            const trackData = {
-                artist_name: artist,
-                track_name: title,
-                album_name: '',
-                spotify_id: undefined,
-            };
+            // Search for the video
+            const searchQuery = `${artist} - ${title}`;
+            console.log('[YT-DLP Send] Searching YouTube for:', searchQuery);
 
+            const searchResp = await client.search(searchQuery);
+
+            if (!searchResp.success || !searchResp.url) {
+                return res.status(200).json({
+                    success: false,
+                    message: searchResp.message || `No YouTube video found for: ${searchQuery}`
+                });
+            }
+
+            console.log('[YT-DLP Send] Found video:', searchResp.url, 'Title:', searchResp.title);
+
+            // Download the track from the found video
             console.log('[YT-DLP Send] Initiating download...');
-            const downloadResp = await downloadTrack(client, trackData as any, {
+            const downloadResp = await client.download({
+                url: searchResp.url,
                 audio_format: settings.audio_format,
-                audio_container: settings.audio_container,
+                output_format: settings.audio_container,
                 filename: `${artist} - ${title}`, // Filename without extension
             });
 

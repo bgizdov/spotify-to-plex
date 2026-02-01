@@ -19,9 +19,30 @@ Add a `/search` endpoint to yt-dlp-host that:
 
 ## Implementation Guide
 
-### 1. Add Search Endpoint to yt-dlp-host
+### 1. Search Endpoint Response Format
 
-Edit the main yt-dlp-host application file (e.g., `app.py` or similar):
+The `/search` endpoint should return:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "url": "https://www.youtube.com/watch?v=VIDEO_ID",
+  "title": "Video Title",
+  "duration": 328,
+  "id": "VIDEO_ID"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "No videos found"
+}
+```
+
+**Example Implementation (Python):**
 
 ```python
 @app.post("/search")
@@ -31,14 +52,6 @@ async def search(request: Request):
     Request body:
     {
         "query": "artist - track name"
-    }
-
-    Response:
-    {
-        "success": true,
-        "url": "https://www.youtube.com/watch?v=VIDEO_ID",
-        "title": "Video Title",
-        "duration": 240
     }
     """
     data = await request.json()
@@ -62,13 +75,15 @@ async def search(request: Request):
 
         if result and 'entries' in result and len(result['entries']) > 0:
             video = result['entries'][0]
-            video_url = f"https://www.youtube.com/watch?v={video['id']}"
+            video_id = video['id']
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
 
             return {
                 "success": True,
                 "url": video_url,
                 "title": video.get('title', 'Unknown'),
-                "duration": video.get('duration', 0)
+                "duration": video.get('duration', 0),
+                "id": video_id
             }
         else:
             return {"success": False, "message": "No videos found"}
@@ -191,9 +206,10 @@ curl -X POST \
 # Response:
 {
   "success": true,
-  "url": "https://www.youtube.com/watch?v=1qNh...",
-  "title": "Eminem - Lose Yourself [Official Video]",
-  "duration": 326
+  "url": "https://www.youtube.com/watch?v=xFYQQPAOz7Y",
+  "title": "Eminem - Lose Yourself",
+  "duration": 328,
+  "id": "xFYQQPAOz7Y"
 }
 ```
 
@@ -205,7 +221,7 @@ curl -X POST \
   -H "Content-Type: application/json" \
   http://localhost:5000/get_audio \
   -d '{
-    "url": "https://www.youtube.com/watch?v=1qNh...",
+    "url": "https://www.youtube.com/watch?v=xFYQQPAOz7Y",
     "filename": "eminem - lose yourself"
   }'
 ```

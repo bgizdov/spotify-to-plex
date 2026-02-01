@@ -40,6 +40,15 @@ export type YtdlpHealthResponse = {
     uptime_seconds: number;
 };
 
+export type YtdlpSearchResponse = {
+    success: boolean;
+    url?: string;
+    title?: string;
+    duration?: number;
+    id?: string;
+    message?: string;
+};
+
 export type YtdlpDownloadTask = {
     id: string;
     task_id: string;
