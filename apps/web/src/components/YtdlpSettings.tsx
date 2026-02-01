@@ -9,9 +9,6 @@ type YtdlpSettings = {
     api_key: string;
     audio_format: 'bestaudio' | 'best' | 'worstaudio' | 'm4a' | 'opus' | 'vorbis' | 'wav';
     audio_container: 'mp3' | 'm4a' | 'opus' | 'vorbis' | 'wav' | 'webm';
-    max_bitrate: number;
-    max_file_size: number;
-    max_download_time: number;
     poll_interval: number;
     poll_max_attempts: number;
     retry_limit: number;
@@ -30,9 +27,6 @@ export default function YtdlpSettings() {
         api_key: '',
         audio_format: 'bestaudio',
         audio_container: 'mp3',
-        max_bitrate: 320,
-        max_file_size: 0,
-        max_download_time: 600,
         poll_interval: 5,
         poll_max_attempts: 120,
         retry_limit: 2,
@@ -113,18 +107,6 @@ export default function YtdlpSettings() {
 
     const handleAudioContainerChange = useCallback((e: any) => {
         handleChange('audio_container', e.target.value);
-    }, [handleChange]);
-
-    const handleMaxBitrateChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-        handleChange('max_bitrate', parseInt(e.target.value, 10));
-    }, [handleChange]);
-
-    const handleMaxFileSizeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-        handleChange('max_file_size', parseInt(e.target.value, 10));
-    }, [handleChange]);
-
-    const handleMaxDownloadTimeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-        handleChange('max_download_time', parseInt(e.target.value, 10));
     }, [handleChange]);
 
     const handlePollIntervalChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
@@ -238,12 +220,6 @@ export default function YtdlpSettings() {
                     </Select>
                 </Box>
 
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                    <TextField label="Max Bitrate (kbps)" type="number" value={settings.max_bitrate} onChange={handleMaxBitrateChange} sx={{ flex: 1 }} helperText="Maximum audio bitrate (0=unlimited)" />
-
-                    <TextField label="Max File Size (MB)" type="number" value={settings.max_file_size} onChange={handleMaxFileSizeChange} sx={{ flex: 1 }} helperText="Maximum download size (0=unlimited)" />
-                </Box>
-
                 <Divider sx={{ mb: 3 }} />
 
                 {/* Download Settings */}
@@ -252,8 +228,6 @@ export default function YtdlpSettings() {
                 </Typography>
 
                 <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                    <TextField label="Max Download Time (seconds)" type="number" value={settings.max_download_time} onChange={handleMaxDownloadTimeChange} sx={{ flex: 1 }} helperText="Timeout for individual downloads" />
-
                     <TextField label="Retry Limit" type="number" value={settings.retry_limit} onChange={handleRetryLimitChange} sx={{ flex: 1 }} helperText="Download retry attempts on failure" />
                 </Box>
 
