@@ -1,5 +1,4 @@
 import { YtdlpClient } from "@spotify-to-plex/shared-utils/ytdlp/client";
-import { downloadTrack } from "@spotify-to-plex/shared-utils/ytdlp/downloadTrack";
 import { getYtdlpSettings } from "@spotify-to-plex/plex-config/functions/getYtdlpSettings";
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createRouter } from 'next-connect';
@@ -53,19 +52,14 @@ const router = createRouter<NextApiRequest, NextApiResponse<SendTrackResponse>>(
             console.log('[YT-DLP Send] Creating YtdlpClient...');
             const client = new YtdlpClient(settings.api_url, settings.api_key);
 
-            // Create track data for download
-            const trackData = {
-                artist_name: artist,
-                track_name: title,
-                album_name: album || 'Unknown Album',
-                spotify_id: undefined,
-                youtube_query: `${artist} - ${title}`
-            };
+            // Generate YouTube search query
+            const youtubeQuery = `${artist} - ${title}`;
 
-            console.log('[YT-DLP Send] Initiating download...');
-            const downloadResp = await downloadTrack(client, trackData as any, {
+            console.log('[YT-DLP Send] Initiating download with query:', youtubeQuery);
+            const downloadResp = await client.download({
+                url: youtubeQuery,
                 audio_format: settings.audio_format,
-                audio_container: settings.audio_container,
+                output_format: settings.audio_container,
                 filename: `${artist} - ${title}`, // Filename without extension
             });
 
