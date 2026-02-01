@@ -1,11 +1,10 @@
 import type { SlskdTrackData } from '@spotify-to-plex/shared-types/slskd/SlskdTrackData';
 
 /**
- * Generate a YouTube search URL from track metadata
- * yt-dlp-host only accepts direct URLs, so we construct a YouTube search URL
- * that yt-dlp will use to find the best matching video
+ * Generate a YouTube search query from track metadata
+ * Uses ytsearch: prefix which tells yt-dlp to search YouTube for the track
+ * yt-dlp will find the first matching video from the search results
  */
 export function generateYoutubeQuery(track: SlskdTrackData): string {
-    const searchQuery = `${track.artist_name} - ${track.track_name}`;
-    return `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+    return `ytsearch1:${track.artist_name} - ${track.track_name}`;
 }
