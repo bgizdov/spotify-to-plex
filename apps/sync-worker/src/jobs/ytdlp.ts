@@ -128,10 +128,11 @@ export async function syncYtdlp() {
                             );
                         }
 
-                        // Initiate download
+                        // Initiate download with custom filename
                         const downloadResp = await downloadTrack(client, track, {
                             audio_format: settings.audio_format,
                             audio_container: settings.audio_container,
+                            filename: `${track.artist_name} - ${track.track_name}`, // Filename without extension
                         });
 
                         if (!downloadResp.task_id) {
