@@ -79,7 +79,8 @@ export default function Logs() {
             playlists: 'Playlists',
             lidarr: 'Lidarr',
             slskd: 'SLSKD',
-            mqtt: 'MQTT'
+            mqtt: 'MQTT',
+            ytdlp: 'YT-DLP'
         };
 
         return titles[type];

@@ -28,20 +28,24 @@ type MissingTrackProps = {
     readonly tidalTrack?: GetTidalTracksResponse;
     readonly slskdEnabled: boolean;
     readonly slskdBusy?: boolean;
+    readonly ytdlpEnabled?: boolean;
 }
 
 export type MissingTrackHandle = {
     sendToSlskd: () => Promise<{ success: boolean; message: string }>;
+    sendToYtdlp: () => Promise<{ success: boolean; message: string }>;
     stopSlskd: () => void;
 }
 
 const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, ref) => {
-    const { track, tidalTrack, slskdEnabled, slskdBusy = false } = props;
+    const { track, tidalTrack, slskdEnabled, slskdBusy = false, ytdlpEnabled } = props;
 
     // Local state for SLSKD operations
     const [isSending, setIsSending] = useState(false);
     const [result, setResult] = useState<SlskdSearchResult>();
     const abortControllerRef = useRef<AbortController | null>(null);
+    const [isSendingToYtdlp, setIsSendingToYtdlp] = useState(false);
+    const [ytdlpResult, setYtdlpResult] = useState<{ success: boolean; message: string }>();
 
     // Determine if track title should be colored warning (missing Tidal track)
     const hasMissingTidalTrack = !!tidalTrack && !!tidalTrack.tidal_ids && tidalTrack.tidal_ids.length === 0;
@@ -205,16 +209,49 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
         }
     }, [track]);
 
-    // Expose sendToSlskd and stopSlskd via ref for batch operations
-    useImperativeHandle(ref, () => ({
-        sendToSlskd,
-        stopSlskd: stopSending
-    }), [sendToSlskd, stopSending]);
+    // First useImperativeHandle removed - will be combined with the second one below
 
     const onSendToSlskdClick = useCallback(() => {
         sendToSlskd();
     }, [sendToSlskd]);
 
+    // Handle sending to YT-DLP - now returns a promise
+    const sendToYtdlp = useCallback(async (): Promise<{ success: boolean; message: string }> => {
+        setIsSendingToYtdlp(true);
+
+        try {
+            const response = await axios.post<{ success: boolean; message: string }>(
+                '/api/ytdlp/send-track',
+                {
+                    title: track.title,
+                    artist: track.artists[0] || 'Unknown Artist',
+                    album: track.album
+                }
+            );
+
+            setYtdlpResult(response.data);
+            setIsSendingToYtdlp(false);
+
+            return response.data;
+        } catch (_e) {
+            const errorResult = { success: false, message: 'Failed to send to YT-DLP' };
+            setYtdlpResult(errorResult);
+            setIsSendingToYtdlp(false);
+
+            return errorResult;
+        }
+    }, [track]);
+
+    const onSendToYtdlpClick = useCallback(() => {
+        sendToYtdlp();
+    }, [sendToYtdlp]);
+
+    // Expose sendToSlskd, sendToYtdlp, and stopSlskd via ref
+    useImperativeHandle(ref, () => ({
+        sendToSlskd,
+        sendToYtdlp,
+        stopSlskd: stopSending
+    }), [sendToSlskd, sendToYtdlp, stopSending]);
 
     const spotifyId = useMemo(()=>{
         if (!track.id) return null;
@@ -264,6 +301,23 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
                         </Box>
                     )}
 
+                    {/* YT-DLP Button */}
+                    {!!ytdlpEnabled && (
+                        <Box>
+                            <Button
+                                onClick={onSendToYtdlpClick}
+                                disabled={isSendingToYtdlp}
+                                className="btn"
+                                color="success"
+                                variant="outlined"
+                                size="small"
+                                sx={{ fontSize: '.8em' }}
+                            >
+                                {isSendingToYtdlp ? 'Sending...' : 'Send to YT-DLP'}
+                            </Button>
+                        </Box>
+                    )}
+
                     {/* Tidal Button */}
                     {!!tidalTrack && !!tidalTrack.tidal_ids && tidalTrack.tidal_ids.length > 0 && (
                         <Box>
@@ -283,7 +337,7 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
                     )}
 
                     {/* Spotify Button */}
-                    {!!spotifyId && 
+                    {!!spotifyId &&
                         <Box>
                             <Button
                                 component="a"
@@ -373,6 +427,11 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
                     ) : null}
                 </Box>
             ) : null}
+
+            {/* YT-DLP Result Alert */}
+            {ytdlpResult ? <Alert severity={ytdlpResult.success ? 'success' : 'error'} sx={{ mt: 1, fontSize: '.85em' }}>
+                {ytdlpResult.message}
+            </Alert> : null}
 
             <Divider sx={{ mt: 1, mb: 1 }} />
         </>

@@ -1,9 +1,10 @@
 import Logo from "@/components/Logo";
 import LidarrSettings from "@/components/LidarrSettings";
 import SlskdSettings from "@/components/SlskdSettings";
+import YtdlpSettings from "@/components/YtdlpSettings";
 import SpotifyNavigation from "@/components/SpotifyNavigation";
 import MainLayout from "@/layouts/MainLayout";
-import { Container, Paper, Typography } from '@mui/material';
+import { Container, Divider, Paper, Typography } from '@mui/material';
 import { NextPage } from "next";
 import Head from "next/head";
 
@@ -33,6 +34,10 @@ const Page: NextPage = () => {
                     </Paper>
                     <Paper elevation={0} sx={{ p: 2, bgcolor: 'action.hover' , mb:2}}>
                         <SlskdSettings />
+
+                        <Divider sx={{ my: 4 }} />
+
+                        <YtdlpSettings />
                     </Paper>
                 </Container>
             </MainLayout >

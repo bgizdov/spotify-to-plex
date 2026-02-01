@@ -54,7 +54,8 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                     playlists: [],
                     lidarr: [],
                     mqtt: [],
-                    slskd: []
+                    slskd: [],
+                    ytdlp: []
                 };
                 const syncLogPath = join(storageDir, 'sync_log.json');
                 if (existsSync(syncLogPath)) {

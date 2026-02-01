@@ -1,0 +1,20 @@
+export type YtdlpSyncLog = {
+    id: string;
+    spotify_id?: string;
+    artist_name: string;
+    track_name: string;
+    album_name?: string;
+    start: number;
+    end?: number;
+    duration_seconds?: number;
+    status: 'success' | 'error' | 'skipped' | 'timeout' | 'queued';
+    error?: string;
+    file_path?: string;
+    file_size?: number;
+    youtube_query?: string;
+    youtube_url?: string;
+    youtube_title?: string;
+    youtube_duration?: number;
+    retry_count?: number;
+    poll_count?: number;
+};
