@@ -73,7 +73,7 @@ const router = createRouter<NextApiRequest, NextApiResponse<SendTrackResponse>>(
                 url: searchResp.url,
                 audio_format: settings.audio_format,
                 output_format: settings.audio_container,
-                filename: `${artist} - ${title}`, // Filename without extension
+                output_filename: `${artist} - ${title}`, // Filename without extension
             });
 
             if (!downloadResp.task_id) {

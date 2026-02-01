@@ -222,7 +222,7 @@ curl -X POST \
   http://localhost:5000/get_audio \
   -d '{
     "url": "https://www.youtube.com/watch?v=xFYQQPAOz7Y",
-    "filename": "eminem - lose yourself"
+    "output_filename": "eminem - lose yourself"
   }'
 ```
 

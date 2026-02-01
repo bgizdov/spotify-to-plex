@@ -25,7 +25,7 @@ export async function downloadTrack(
         url: query,
         audio_format: options.audio_format,
         output_format: options.audio_container,
-        filename: options.filename, // Pass custom filename to yt-dlp-host
+        output_filename: options.filename, // Pass custom filename to yt-dlp-host
     });
 
     return response;

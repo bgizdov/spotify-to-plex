@@ -4,7 +4,7 @@ export type YtdlpDownloadRequest = {
     url: string;
     audio_format?: string;
     output_format?: string;
-    filename?: string; // Optional custom filename without extension
+    output_filename?: string; // Optional custom filename without extension
 };
 
 export type YtdlpDownloadResponse = {

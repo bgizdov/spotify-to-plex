@@ -144,7 +144,7 @@ export async function syncYtdlp() {
                             url: searchResp.url,
                             audio_format: settings.audio_format,
                             output_format: settings.audio_container,
-                            filename: `${track.artist_name} - ${track.track_name}`, // Filename without extension
+                            output_filename: `${track.artist_name} - ${track.track_name}`, // Filename without extension
                         });
 
                         if (!downloadResp.task_id) {
