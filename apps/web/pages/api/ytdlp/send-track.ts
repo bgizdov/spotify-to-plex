@@ -53,9 +53,11 @@ const router = createRouter<NextApiRequest, NextApiResponse<SendTrackResponse>>(
             const client = new YtdlpClient(settings.api_url, settings.api_key);
 
             // Generate YouTube search query
-            const youtubeQuery = `${artist} - ${title}`;
+            // Use "artist - title" format which yt-dlp-host will search on YouTube
+            // yt-dlp-host passes this to youtube.com/results search automatically
+            const youtubeQuery = `ytsearch:"${artist} - ${title}"`;
 
-            console.log('[YT-DLP Send] Initiating download with query:', youtubeQuery);
+            console.log('[YT-DLP Send] Initiating download with search query:', youtubeQuery);
             const downloadResp = await client.download({
                 url: youtubeQuery,
                 audio_format: settings.audio_format,
