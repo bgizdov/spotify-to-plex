@@ -11,6 +11,7 @@ export type GetLogsResponse = {
     sync_log: SyncLogCollection;
     lidarr_sync_log: Record<string, any>;
     slskd_sync_log: Record<string, any>;
+    ytdlp_sync_log: Record<string, any>;
     missing_files: {
         missing_tracks_spotify: string;
         missing_tracks_tidal: string;
@@ -19,6 +20,7 @@ export type GetLogsResponse = {
         missing_tracks_lidarr: string;
         missing_albums_lidarr: string;
         missing_tracks_slskd: string;
+        missing_tracks_ytdlp: string;
     };
 }
 
@@ -54,7 +56,8 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                     playlists: [],
                     lidarr: [],
                     mqtt: [],
-                    slskd: []
+                    slskd: [],
+                    ytdlp: []
                 };
                 const syncLogPath = join(storageDir, 'sync_log.json');
                 if (existsSync(syncLogPath)) {
@@ -87,6 +90,18 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                         slskdSyncLog = JSON.parse(content);
                     } catch (error) {
                         console.error('Error parsing slskd_sync_log.json:', error);
+                    }
+                }
+
+                // Read ytdlp_sync_log.json with fallback
+                let ytdlpSyncLog = {};
+                const ytdlpSyncLogPath = join(storageDir, 'ytdlp_sync_log.json');
+                if (existsSync(ytdlpSyncLogPath)) {
+                    try {
+                        const content = readFileSync(ytdlpSyncLogPath, 'utf-8');
+                        ytdlpSyncLog = JSON.parse(content);
+                    } catch (error) {
+                        console.error('Error parsing ytdlp_sync_log.json:', error);
                     }
                 }
 
@@ -128,6 +143,7 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                     sync_log: syncLog,
                     lidarr_sync_log: lidarrSyncLog,
                     slskd_sync_log: slskdSyncLog,
+                    ytdlp_sync_log: ytdlpSyncLog,
                     missing_files: {
                         missing_tracks_spotify: readMissingFile('missing_tracks_spotify.txt'),
                         missing_tracks_tidal: readMissingFile('missing_tracks_tidal.txt'),
@@ -136,6 +152,7 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                         missing_tracks_lidarr: readMissingJsonFile('missing_tracks_lidarr.json'),
                         missing_albums_lidarr: readMissingJsonFile('missing_albums_lidarr.json'),
                         missing_tracks_slskd: readMissingJsonFile('missing_tracks_slskd.json'),
+                        missing_tracks_ytdlp: readMissingJsonFile('missing_tracks_ytdlp.json'),
                     }
                 };
 
@@ -172,6 +189,12 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                 // Delete slskd_sync_log.json if it exists
                 if (existsSync(slskdSyncLogPath)) {
                     unlinkSync(slskdSyncLogPath);
+                }
+
+                // Delete ytdlp_sync_log.json if it exists
+                const ytdlpSyncLogPath = join(storageDir, 'ytdlp_sync_log.json');
+                if (existsSync(ytdlpSyncLogPath)) {
+                    unlinkSync(ytdlpSyncLogPath);
                 }
 
                 res.status(200).json({ message: 'Logs cleared successfully' });

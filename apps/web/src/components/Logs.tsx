@@ -79,7 +79,8 @@ export default function Logs() {
             playlists: 'Playlists',
             lidarr: 'Lidarr',
             slskd: 'SLSKD',
-            mqtt: 'MQTT'
+            mqtt: 'MQTT',
+            ytdlp: 'YT-DLP'
         };
 
         return titles[type];
@@ -102,7 +103,7 @@ export default function Logs() {
     const renderOverview = () => {
         if (!data) return null;
 
-        const syncTypes: SyncType[] = ['users', 'albums', 'playlists', 'lidarr', 'slskd', 'mqtt'];
+        const syncTypes: SyncType[] = ['users', 'albums', 'playlists', 'lidarr', 'slskd', 'mqtt', 'ytdlp'];
 
         return (
             <Box sx={{ mb: 3 }}>
@@ -325,7 +326,8 @@ export default function Logs() {
             { title: 'Missing Albums - Tidal', content: data.missing_files.missing_albums_tidal },
             { title: 'Missing Tracks - Lidarr (JSON)', content: data.missing_files.missing_tracks_lidarr },
             { title: 'Missing Albums - Lidarr (JSON)', content: data.missing_files.missing_albums_lidarr },
-            { title: 'Missing Tracks - SLSKD (JSON)', content: data.missing_files.missing_tracks_slskd }
+            { title: 'Missing Tracks - SLSKD (JSON)', content: data.missing_files.missing_tracks_slskd },
+            { title: 'Missing Tracks - YT-DLP (JSON)', content: data.missing_files.missing_tracks_ytdlp }
         ];
 
         return (
@@ -394,6 +396,9 @@ export default function Logs() {
     if (data?.slskd_sync_log && Object.keys(data.slskd_sync_log).length > 0)
         tabs.push({ label: 'SLSKD', type: 'slskd' });
 
+    if (data?.sync_log.ytdlp && data.sync_log.ytdlp.length > 0)
+        tabs.push({ label: 'YT-DLP', type: 'ytdlp' });
+
     if (data?.sync_log.mqtt && data.sync_log.mqtt.length > 0)
         tabs.push({ label: 'MQTT', type: 'mqtt' });
 
@@ -422,6 +427,7 @@ export default function Logs() {
                     {tab.type === 'playlists' && renderSyncTypeLogs('playlists')}
                     {tab.type === 'lidarr' && renderLidarrDetailLogs()}
                     {tab.type === 'slskd' && renderSlskdDetailLogs()}
+                    {tab.type === 'ytdlp' && renderSyncTypeLogs('ytdlp')}
                     {tab.type === 'mqtt' && renderSyncTypeLogs('mqtt')}
                     {tab.type === 'output' && renderOutput()}
                 </TabPanel>

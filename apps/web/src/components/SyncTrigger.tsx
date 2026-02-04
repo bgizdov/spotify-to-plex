@@ -4,7 +4,7 @@ import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
 import type { SyncAvailability } from "../../pages/api/sync/availability";
 
-type SyncType = 'users' | 'albums' | 'playlists' | 'lidarr' | 'mqtt' | 'slskd' | 'all';
+type SyncType = 'users' | 'albums' | 'playlists' | 'lidarr' | 'mqtt' | 'slskd' | 'ytdlp' | 'all';
 
 type SyncOption = {
     type: SyncType;
@@ -39,6 +39,11 @@ const syncOptions: SyncOption[] = [
         description: 'Sync missing tracks to SLSKD'
     },
     {
+        type: 'ytdlp',
+        label: 'YT-DLP',
+        description: 'Download missing tracks from YouTube'
+    },
+    {
         type: 'mqtt',
         label: 'MQTT',
         description: 'Publish Plex data to Home Assistant via MQTT'
@@ -55,6 +60,7 @@ export default function SyncTrigger() {
         lidarr: false,
         mqtt: false,
         slskd: false,
+        ytdlp: false,
         all: false
     });
     const [success, setSuccess] = useState<SyncType | null>(null);
