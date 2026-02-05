@@ -7,7 +7,7 @@ import { GetPlaylistResponse } from "@spotify-to-plex/shared-types/plex/GetPlayl
 import { SearchResponse } from "@spotify-to-plex/plex-music-search/types/SearchResponse";
 import { search as plexMusicSearch } from "@spotify-to-plex/plex-music-search/functions/search";
 import { getMusicSearchConfig } from "@spotify-to-plex/music-search/functions/getMusicSearchConfig";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { findMissingTidalTracks } from "../utils/findMissingTidalTracks";
 import { getCachedPlexTracks } from "../utils/getCachedPlexTracks";
@@ -231,7 +231,28 @@ export async function syncPlaylists() {
                 writeFileSync(join(getStorageDir(), 'missing_tracks_tidal.txt'), missingTidalTracks.map(id => `https://tidal.com/browse/track/${id}`).join('\n'))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
-                writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracksYtdlp, null, 2))
+
+                // YT-DLP missing tracks queue (will be updated by ytdlp sync job)
+                // Only write if file doesn't exist yet to preserve queue
+                const ytdlpPath = join(getStorageDir(), 'missing_tracks_ytdlp.json');
+                if (!existsSync(ytdlpPath)) {
+                    writeFileSync(ytdlpPath, JSON.stringify(missingTracksYtdlp, null, 2));
+                } else {
+                    // Merge with existing missing tracks (append new ones)
+                    try {
+                        const existing = JSON.parse(readFileSync(ytdlpPath, 'utf8')) as SlskdTrackData[];
+                        const merged = [...existing];
+                        missingTracksYtdlp.forEach(track => {
+                            if (!merged.some(t => t.spotify_id === track.spotify_id)) {
+                                merged.push(track);
+                            }
+                        });
+                        writeFileSync(ytdlpPath, JSON.stringify(merged, null, 2));
+                    } catch {
+                        // If file is corrupted, overwrite with current data
+                        writeFileSync(ytdlpPath, JSON.stringify(missingTracksYtdlp, null, 2));
+                    }
+                }
 
             } catch (e) {
                 const message = e instanceof Error ? e.message : 'Unknown error';

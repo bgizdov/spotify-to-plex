@@ -90,6 +90,7 @@ export async function syncYtdlp() {
         let successCount = 0;
         let errorCount = 0;
         let skippedCount = 0;
+        const missingTracks: SlskdTrackData[] = [];
 
         for (let i = 0; i < tracks.length; i++) {
             const track = tracks[i];
@@ -139,6 +140,7 @@ export async function syncYtdlp() {
                     trackLog.end = Date.now();
                     errorCount++;
                     ytdlpLogs[logId] = trackLog;
+                    missingTracks.push(track);
                     console.log(`❌ No video found: ${youtubeQuery}`);
                     continue;
                 }
@@ -165,6 +167,7 @@ export async function syncYtdlp() {
                     trackLog.end = Date.now();
                     errorCount++;
                     ytdlpLogs[logId] = trackLog;
+                    missingTracks.push(track);
                     console.log(`❌ Download failed: ${downloadResult.error || downloadResult.message}`);
                     continue;
                 }
@@ -183,6 +186,7 @@ export async function syncYtdlp() {
                 trackLog.end = Date.now();
                 errorCount++;
                 ytdlpLogs[logId] = trackLog;
+                missingTracks.push(track);
 
                 console.log(`❌ Error processing track: ${error.message}`);
             }
@@ -194,10 +198,13 @@ export async function syncYtdlp() {
         // Save YT-DLP logs
         writeFileSync(ytdlpLogsPath, JSON.stringify(ytdlpLogs, null, 2));
 
+        // Save missing tracks (tracks not found or failed to download)
+        writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracks, null, 2));
+
         // Complete sync log
         logComplete(syncLog);
 
-        console.log(`YT-DLP sync complete: ${successCount} queued, ${skippedCount} skipped, ${errorCount} errors`);
+        console.log(`YT-DLP sync complete: ${successCount} queued, ${skippedCount} skipped, ${errorCount} errors, ${missingTracks.length} still missing`);
 
         // Mark sync as complete
         completeSyncType('ytdlp');

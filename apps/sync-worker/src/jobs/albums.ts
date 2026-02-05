@@ -2,7 +2,7 @@ import { getStorageDir } from '@spotify-to-plex/shared-utils/utils/getStorageDir
 import { searchAlbum } from "@spotify-to-plex/plex-music-search/functions/searchAlbum";
 import { SearchResponse } from "@spotify-to-plex/plex-music-search/types/SearchResponse";
 import { getMusicSearchConfig } from "@spotify-to-plex/music-search/functions/getMusicSearchConfig";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { findMissingTidalAlbums } from "../utils/findMissingTidalAlbums";
 import { getCachedPlexTracks } from "../utils/getCachedPlexTracks";
@@ -181,7 +181,28 @@ export async function syncAlbums() {
             writeFileSync(join(getStorageDir(), 'missing_albums_tidal.txt'), missingTidalAlbums.map(id => `https://tidal.com/browse/album/${id}`).join('\n'))
             writeFileSync(join(getStorageDir(), 'missing_albums_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
             writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
-            writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracksYtdlp, null, 2))
+
+            // YT-DLP missing tracks queue (will be updated by ytdlp sync job)
+            // Only write if file doesn't exist yet to preserve queue
+            const ytdlpPath = join(getStorageDir(), 'missing_tracks_ytdlp.json');
+            if (!existsSync(ytdlpPath)) {
+                writeFileSync(ytdlpPath, JSON.stringify(missingTracksYtdlp, null, 2));
+            } else {
+                // Merge with existing missing tracks (append new ones)
+                try {
+                    const existing = JSON.parse(readFileSync(ytdlpPath, 'utf8')) as SlskdTrackData[];
+                    const merged = [...existing];
+                    missingTracksYtdlp.forEach(track => {
+                        if (!merged.some(t => t.spotify_id === track.spotify_id)) {
+                            merged.push(track);
+                        }
+                    });
+                    writeFileSync(ytdlpPath, JSON.stringify(merged, null, 2));
+                } catch {
+                    // If file is corrupted, overwrite with current data
+                    writeFileSync(ytdlpPath, JSON.stringify(missingTracksYtdlp, null, 2));
+                }
+            }
         }
 
         // Mark sync as complete
