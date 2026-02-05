@@ -40,6 +40,7 @@ export async function syncAlbums() {
         const missingTidalAlbums: string[] = []
         const missingAlbumsLidarr: LidarrAlbumData[] = []
         const missingTracksSlskd: SlskdTrackData[] = []
+        const missingTracksYtdlp: SlskdTrackData[] = []
 
         for (let i = 0; i < toSyncAlbums.length; i++) {
             const item = toSyncAlbums[i];
@@ -158,6 +159,16 @@ export async function syncAlbums() {
                         album_name: album
                     });
                 }
+
+                // Also add to YT-DLP missing tracks
+                if (spotifyId && !missingTracksYtdlp.some(item => item.spotify_id === key)) {
+                    missingTracksYtdlp.push({
+                        spotify_id: spotifyId,
+                        artist_name: artist,
+                        track_name: trackName,
+                        album_name: album
+                    });
+                }
             });
 
             /////////////////////////////
@@ -170,6 +181,7 @@ export async function syncAlbums() {
             writeFileSync(join(getStorageDir(), 'missing_albums_tidal.txt'), missingTidalAlbums.map(id => `https://tidal.com/browse/album/${id}`).join('\n'))
             writeFileSync(join(getStorageDir(), 'missing_albums_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
             writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
+            writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracksYtdlp, null, 2))
         }
 
         // Mark sync as complete

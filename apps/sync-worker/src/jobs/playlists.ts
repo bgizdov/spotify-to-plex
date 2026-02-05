@@ -50,6 +50,7 @@ export async function syncPlaylists() {
         const missingTidalTracks: string[] = []
         const missingAlbumsLidarr: LidarrAlbumData[] = []
         const missingTracksSlskd: SlskdTrackData[] = []
+        const missingTracksYtdlp: SlskdTrackData[] = []
 
         for (let i = 0; i < toSyncPlaylists.length; i++) {
             const item = toSyncPlaylists[i];
@@ -208,6 +209,16 @@ export async function syncPlaylists() {
                             album_name: album
                         });
                     }
+
+                    // Also add to YT-DLP missing tracks
+                    if (spotifyId && !missingTracksYtdlp.some(item => item.spotify_id === key)) {
+                        missingTracksYtdlp.push({
+                            spotify_id: spotifyId,
+                            artist_name: artist,
+                            track_name: trackName,
+                            album_name: album
+                        });
+                    }
                 });
 
                 /////////////////////////////
@@ -220,6 +231,7 @@ export async function syncPlaylists() {
                 writeFileSync(join(getStorageDir(), 'missing_tracks_tidal.txt'), missingTidalTracks.map(id => `https://tidal.com/browse/track/${id}`).join('\n'))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
                 writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
+                writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracksYtdlp, null, 2))
 
             } catch (e) {
                 const message = e instanceof Error ? e.message : 'Unknown error';
