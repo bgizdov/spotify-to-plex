@@ -1,9 +1,8 @@
 import Logo from "@/components/Logo";
 import SyncTrigger from "@/components/SyncTrigger";
-import YtdlpManualSend from "@/components/YtdlpManualSend";
 import SpotifyNavigation from "@/components/SpotifyNavigation";
 import MainLayout from "@/layouts/MainLayout";
-import { Container, Paper, Typography, Box } from '@mui/material';
+import { Container, Paper, Typography } from '@mui/material';
 import { NextPage } from "next";
 import Head from "next/head";
 
@@ -30,9 +29,6 @@ const Page: NextPage = () => {
                         </Typography>
                         <SyncTrigger  />
                     </Paper>
-                    <Box sx={{ mt: 3 }}>
-                        <YtdlpManualSend />
-                    </Box>
                 </Container>
             </MainLayout>
         </>

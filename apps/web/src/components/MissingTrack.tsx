@@ -8,18 +8,22 @@ type MissingTrackProps = {
     readonly track: Track;
     readonly tidalTrack?: GetTidalTracksResponse;
     readonly slskdEnabled: boolean;
+    readonly ytdlpEnabled?: boolean;
 }
 
 export type MissingTrackHandle = {
     sendToSlskd: () => Promise<{ success: boolean; message: string }>;
+    sendToYtdlp: () => Promise<{ success: boolean; message: string }>;
 }
 
 const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, ref) => {
-    const { track, tidalTrack, slskdEnabled } = props;
+    const { track, tidalTrack, slskdEnabled, ytdlpEnabled } = props;
 
-    // Local state for SLSKD operations
+    // Local state for SLSKD and YT-DLP operations
     const [isSending, setIsSending] = useState(false);
+    const [isYtdlpSending, setIsYtdlpSending] = useState(false);
     const [result, setResult] = useState<{ success: boolean; message: string }>();
+    const [ytdlpResult, setYtdlpResult] = useState<{ success: boolean; message: string }>();
 
     // Determine if track title should be colored warning (missing Tidal track)
     const hasMissingTidalTrack = !!tidalTrack && !!tidalTrack.tidal_ids && tidalTrack.tidal_ids.length === 0;
@@ -53,14 +57,48 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
         }
     }, [track]);
 
-    // Expose sendToSlskd via ref
+    // Handle sending to YT-DLP
+    const sendToYtdlp = useCallback(async (): Promise<{ success: boolean; message: string }> => {
+        setIsYtdlpSending(true);
+
+        try {
+            const response = await axios.post<{ success: boolean; message: string }>(
+                '/api/ytdlp/send-track',
+                {
+                    id: track.id,
+                    title: track.title,
+                    artist: track.artists[0] || 'Unknown Artist',
+                    album: track.album,
+                    duration: 0
+                }
+            );
+
+            setYtdlpResult(response.data);
+            setIsYtdlpSending(false);
+
+            return response.data;
+        } catch (_e) {
+            const errorResult = { success: false, message: 'Failed to send to YT-DLP' };
+            setYtdlpResult(errorResult);
+            setIsYtdlpSending(false);
+
+            return errorResult;
+        }
+    }, [track]);
+
+    // Expose sendToSlskd and sendToYtdlp via ref
     useImperativeHandle(ref, () => ({
-        sendToSlskd
-    }), [sendToSlskd]);
+        sendToSlskd,
+        sendToYtdlp
+    }), [sendToSlskd, sendToYtdlp]);
 
     const onSendToSlskdClick = useCallback(() => {
         sendToSlskd();
     }, [sendToSlskd]);
+
+    const onSendToYtdlpClick = useCallback(() => {
+        sendToYtdlp();
+    }, [sendToYtdlp]);
 
 
     const spotifyId = useMemo(()=>{
@@ -104,6 +142,23 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
                         </Box>
                     )}
 
+                    {/* YT-DLP Button */}
+                    {!!ytdlpEnabled && (
+                        <Box>
+                            <Button
+                                onClick={onSendToYtdlpClick}
+                                disabled={isYtdlpSending}
+                                className="btn"
+                                color="primary"
+                                variant="outlined"
+                                size="small"
+                                sx={{ fontSize: '.8em' }}
+                            >
+                                {isYtdlpSending ? 'Sending...' : 'Send to YT-DLP'}
+                            </Button>
+                        </Box>
+                    )}
+
                     {/* Tidal Button */}
                     {!!tidalTrack && !!tidalTrack.tidal_ids && tidalTrack.tidal_ids.length > 0 && (
                         <Box>
@@ -140,9 +195,14 @@ const MissingTrack = forwardRef<MissingTrackHandle, MissingTrackProps>((props, r
                 </Box>
             </Box>
 
-            {/* Result Alert */}
+            {/* SLSKD Result Alert */}
             {result ? <Alert severity={result.success ? 'success' : 'error'} sx={{ mt: 1, fontSize: '.85em' }}>
                 {result.message}
+            </Alert> : null}
+
+            {/* YT-DLP Result Alert */}
+            {ytdlpResult ? <Alert severity={ytdlpResult.success ? 'success' : 'error'} sx={{ mt: 1, fontSize: '.85em' }}>
+                {ytdlpResult.message}
             </Alert> : null}
 
             <Divider sx={{ mt: 1, mb: 1 }} />
