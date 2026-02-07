@@ -22,9 +22,9 @@ async function getYtdlpSettings(): Promise<YtdlpSettings> {
 }
 
 const SYNC_SCHEDULE = '0 2 * * *'; // Every day at 02:00
-const SLSKD_SYNC_SCHEDULE = '0 3 * * *'; // Every day at 03:00
-const LIDARR_SYNC_SCHEDULE = '0 4 * * *'; // Every day at 04:00
-const YTDLP_SYNC_SCHEDULE = '0 5 * * *'; // Every day at 05:00
+const SLSKD_SYNC_SCHEDULE = '0 5 * * *'; // Every day at 05:00
+const LIDARR_SYNC_SCHEDULE = '0 6 * * *'; // Every day at 06:00
+const YTDLP_SYNC_SCHEDULE = '0 7 * * *'; // Every day at 07:00
 const MQTT_SYNC_SCHEDULE = '0 * * * *'; // Every hour
 
 console.log('🚀 Sync scheduler started');
