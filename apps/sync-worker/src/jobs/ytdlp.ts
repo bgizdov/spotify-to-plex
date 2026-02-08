@@ -5,7 +5,7 @@ import { SlskdSyncLog } from "@spotify-to-plex/shared-types/slskd/SlskdSyncLog";
 import { SlskdTrackData } from "@spotify-to-plex/shared-types/slskd/SlskdTrackData";
 import { YtdlpClient } from "@spotify-to-plex/shared-utils/ytdlp/client";
 import { waitForDownloadComplete } from "@spotify-to-plex/shared-utils/ytdlp/waitForDownloadComplete";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getNestedSyncLogsForType } from "../utils/getNestedSyncLogsForType";
 import { startSyncType } from "../utils/startSyncType";
@@ -15,12 +15,16 @@ import { errorSyncType } from "../utils/errorSyncType";
 import { updateSyncTypeProgress } from "../utils/updateSyncTypeProgress";
 
 export async function syncYtdlp() {
-    console.log("Starting yt-dlp sync...");
+    console.log("=".repeat(60));
+    console.log("Starting YT-DLP sync...");
+    console.log("=".repeat(60));
 
     // Check yt-dlp settings
     const settings = await getYtdlpSettings();
+    console.log(`YT-DLP Settings: enabled=${settings.enabled}, fallback_only=${settings.fallback_only}`);
+
     if (!settings.enabled) {
-        console.log("yt-dlp sync is disabled");
+        console.log("❌ YT-DLP sync is disabled");
         return;
     }
 
@@ -31,25 +35,29 @@ export async function syncYtdlp() {
     try {
         // Validate configuration
         if (!settings.api_url) {
+            console.error("❌ YT-DLP API URL not configured");
             throw new Error("yt-dlp API URL not configured");
         }
 
         if (!settings.api_key) {
+            console.error("❌ YT-DLP API key not configured");
             throw new Error("yt-dlp API key not configured");
         }
+
+        console.log(`✓ API URL: ${settings.api_url}`);
 
         // Initialize client
         const client = new YtdlpClient(settings.api_url, settings.api_key);
 
         // Test connection
-        console.log("Testing connection to yt-dlp-host...");
+        console.log("🔌 Testing connection to yt-dlp-host...");
         const health = await client.health();
-        console.log(`Connected to yt-dlp-host: ${health.version}`);
+        console.log(`✓ Connected to yt-dlp-host: ${health.version}`);
 
         // Read ALL missing tracks from JSON file
         const tracksPath = join(getStorageDir(), "missing_tracks_slskd.json");
         if (!existsSync(tracksPath)) {
-            console.log("No missing tracks file found");
+            console.log("⚠️  No missing tracks file found at:", tracksPath);
             completeSyncType("ytdlp");
             return;
         }
@@ -60,16 +68,17 @@ export async function syncYtdlp() {
         try {
             tracks = JSON.parse(content);
         } catch (_e) {
+            console.error("❌ Failed to parse missing tracks JSON");
             throw new Error("Failed to parse missing tracks JSON");
         }
 
         if (tracks.length === 0) {
-            console.log("No missing tracks to process");
+            console.log("ℹ️  No missing tracks to process");
             completeSyncType("ytdlp");
             return;
         }
 
-        console.log(`Found ${tracks.length} missing tracks to process`);
+        console.log(`📋 Found ${tracks.length} missing tracks to process`);
 
         // Read SLSKD sync log to check which tracks were 'not_found'
         const slskdLogPath = join(getStorageDir(), "slskd_sync_log.json");
@@ -84,13 +93,21 @@ export async function syncYtdlp() {
                 .map((log) => `${log.artist_name}||${log.track_name}`)
         );
 
-        console.log(
-            `SLSKD found ${slskdLogs.length - notFoundTracks.size} tracks, ${notFoundTracks.size} not found`
-        );
+        console.log(`📊 SLSKD Results: ${slskdLogs.length - notFoundTracks.size} found, ${notFoundTracks.size} not found`);
+
+        if (settings.fallback_only) {
+            console.log(`🔄 Fallback mode: Only processing ${notFoundTracks.size} tracks not found by SLSKD`);
+        } else {
+            console.log(`🔄 Full mode: Processing all ${tracks.length} missing tracks`);
+        }
 
         // Initialize logs
         const { putLog, logComplete, logError } = getNestedSyncLogsForType("ytdlp");
         const syncLog = putLog("ytdlp-sync", "YT-DLP Sync");
+
+        // Read existing YT-DLP logs
+        const ytdlpLogsPath = join(getStorageDir(), 'ytdlp_sync_log.json');
+        const ytdlpLogs: Record<string, any> = {};
 
         let successCount = 0;
         let failureCount = 0;
@@ -105,6 +122,9 @@ export async function syncYtdlp() {
 
             // Skip if SLSKD found the track (fallback_only mode)
             if (settings.fallback_only && !notFoundTracks.has(trackKey)) {
+                if (skippedCount === 0) {
+                    console.log(`⏭️  Skipping tracks found by SLSKD (fallback mode)...`);
+                }
                 skippedCount++;
                 updateSyncTypeProgress("ytdlp", i + 1, tracks.length);
                 continue;
@@ -114,6 +134,15 @@ export async function syncYtdlp() {
                 `${track.artist_name} - ${track.track_name}`,
                 `${track.artist_name} - ${track.track_name}`
             );
+
+            const logId = `${Date.now()}-${trackKey}`;
+            const detailedLog: any = {
+                id: logId,
+                artist_name: track.artist_name,
+                track_name: track.track_name,
+                start: Date.now(),
+                status: 'error',
+            };
 
             try {
                 // Attempt download with retries
@@ -169,6 +198,10 @@ export async function syncYtdlp() {
                             console.log(
                                 `[${track.artist_name} - ${track.track_name}] ✓ Downloaded successfully`
                             );
+                            detailedLog.status = 'completed';
+                            detailedLog.video_url = searchResp.url;
+                            detailedLog.video_title = searchResp.title;
+                            detailedLog.file_path = statusResp.file;
                             downloadSuccess = true;
                             successCount++;
                             break; // Exit retry loop on success
@@ -196,10 +229,16 @@ export async function syncYtdlp() {
                     throw new Error("All download attempts exhausted");
                 }
 
+                detailedLog.end = Date.now();
+                ytdlpLogs[logId] = detailedLog;
                 logComplete(trackLog);
             } catch (error) {
                 const errorMsg = error instanceof Error ? error.message : String(error);
+                detailedLog.status = 'error';
+                detailedLog.error = errorMsg;
+                detailedLog.end = Date.now();
                 failureCount++;
+                ytdlpLogs[logId] = detailedLog;
 
                 console.log(
                     `[${track.artist_name} - ${track.track_name}] ✗ Failed: ${errorMsg}`
@@ -211,15 +250,51 @@ export async function syncYtdlp() {
             updateSyncTypeProgress("ytdlp", i + 1, tracks.length);
         }
 
-        console.log(
-            `yt-dlp sync complete: ${successCount} succeeded, ${failureCount} failed, ${skippedCount} skipped`
-        );
+        // Write missing tracks file for YT-DLP (tracks that will be processed)
+        const ytdlpTracksToProcess = tracks.filter(track => {
+            const trackKey = `${track.artist_name}||${track.track_name}`;
+            return !settings.fallback_only || notFoundTracks.has(trackKey);
+        });
+
+        const ytdlpMissingTracksPath = join(getStorageDir(), 'missing_tracks_ytdlp.json');
+        writeFileSync(ytdlpMissingTracksPath, JSON.stringify(ytdlpTracksToProcess, null, 2));
+        console.log(`💾 Saved ${ytdlpTracksToProcess.length} tracks to missing_tracks_ytdlp.json`);
+
+        console.log("=".repeat(60));
+        console.log(`✅ YT-DLP sync complete:`);
+        console.log(`   • ${successCount} succeeded`);
+        console.log(`   • ${failureCount} failed`);
+        console.log(`   • ${skippedCount} skipped`);
+        console.log("=".repeat(60));
+
+        // Save YT-DLP logs
+        writeFileSync(ytdlpLogsPath, JSON.stringify(ytdlpLogs, null, 2));
+        console.log(`📄 Detailed logs saved to ytdlp_sync_log.json`);
 
         logComplete(syncLog);
         completeSyncType("ytdlp");
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.error("yt-dlp sync error:", errorMsg);
+        console.error("=".repeat(60));
+        console.error("❌ YT-DLP sync error:", errorMsg);
+        console.error("=".repeat(60));
         errorSyncType("ytdlp", errorMsg);
+        throw error;
     }
+}
+
+function run() {
+    syncYtdlp()
+        .then(() => {
+            console.log('YT-DLP sync completed');
+        })
+        .catch((e: unknown) => {
+            console.error('YT-DLP sync failed:', e);
+        });
+}
+
+// Only run if this file is executed directly, not when imported
+// eslint-disable-next-line unicorn/prefer-module
+if (require.main === module) {
+    run();
 }

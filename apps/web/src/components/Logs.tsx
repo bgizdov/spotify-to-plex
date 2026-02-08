@@ -334,6 +334,68 @@ export default function Logs() {
         );
     };
 
+    const renderYtdlpDetailLogs = () => {
+        if (!data?.ytdlp_sync_log || Object.keys(data.ytdlp_sync_log).length === 0) {
+            return (
+                <Alert severity="info">
+                    No YT-DLP synchronization detail logs found. Logs will appear here after tracks are sent to YT-DLP.
+                </Alert>
+            );
+        }
+
+        const ytdlpEntries = Object.entries(data.ytdlp_sync_log)
+            .map(([id, log]: [string, any]) => ({ id, ...log }))
+            .sort((a, b) => (b.start || 0) - (a.start || 0))
+            .slice(0, 100);
+
+        return (
+            <Box>
+                {ytdlpEntries.map((log) => {
+                    const duration = log.end && log.start ? log.end - log.start : null;
+                    const hasError = log.status === 'error';
+                    const isCompleted = log.status === 'completed';
+
+                    return (
+                        <Box
+                            key={log.id}
+                            sx={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                py: 0.75,
+                                px: 1.5,
+                                bgcolor: hasError ? 'error.lighter' : 'action.hover',
+                                borderRadius: 1,
+                                mb: 0.5
+                            }}
+                        >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                    {log.artist_name} - {log.track_name}
+                                </Typography>
+                                {log.start ? <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                                    <BMoment date={log.start} format="D MMM HH:mm" />
+                                </Typography> : null}
+                                {duration !== null && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'nowrap', minWidth: '60px', textAlign: 'right' }}>
+                                        {formatDuration(duration)}
+                                    </Typography>
+                                )}
+                                {hasError && log.error ? (
+                                    <Tooltip title={log.error} arrow>
+                                        <Chip label={log.status} color="error" size="small" sx={{ minWidth: '85px', cursor: 'help' }} />
+                                    </Tooltip>
+                                ) : (
+                                    <Chip label={log.status} color={isCompleted ? 'success' : 'error'} size="small" sx={{ minWidth: '85px' }} />
+                                )}
+                            </Box>
+                        </Box>
+                    );
+                })}
+            </Box>
+        );
+    };
+
     const renderOutput = () => {
         if (!data) return null;
 
@@ -344,7 +406,8 @@ export default function Logs() {
             { title: 'Missing Albums - Tidal', content: data.missing_files.missing_albums_tidal },
             { title: 'Missing Tracks - Lidarr (JSON)', content: data.missing_files.missing_tracks_lidarr },
             { title: 'Missing Albums - Lidarr (JSON)', content: data.missing_files.missing_albums_lidarr },
-            { title: 'Missing Tracks - SLSKD (JSON)', content: data.missing_files.missing_tracks_slskd }
+            { title: 'Missing Tracks - SLSKD (JSON)', content: data.missing_files.missing_tracks_slskd },
+            { title: 'Missing Tracks - YT-DLP (JSON)', content: data.missing_files.missing_tracks_ytdlp }
         ];
 
         return (
@@ -413,6 +476,9 @@ export default function Logs() {
     if (data?.slskd_sync_log && Object.keys(data.slskd_sync_log).length > 0)
         tabs.push({ label: 'SLSKD', type: 'slskd' });
 
+    if (data?.ytdlp_sync_log && Object.keys(data.ytdlp_sync_log).length > 0)
+        tabs.push({ label: 'YT-DLP', type: 'ytdlp' });
+
     if (data?.sync_log.mqtt && data.sync_log.mqtt.length > 0)
         tabs.push({ label: 'MQTT', type: 'mqtt' });
 
@@ -441,6 +507,7 @@ export default function Logs() {
                     {tab.type === 'playlists' && renderSyncTypeLogs('playlists')}
                     {tab.type === 'lidarr' && renderLidarrDetailLogs()}
                     {tab.type === 'slskd' && renderSlskdDetailLogs()}
+                    {tab.type === 'ytdlp' && renderYtdlpDetailLogs()}
                     {tab.type === 'mqtt' && renderSyncTypeLogs('mqtt')}
                     {tab.type === 'output' && renderOutput()}
                 </TabPanel>
