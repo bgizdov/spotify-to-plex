@@ -1,6 +1,7 @@
 import { generateError } from '@/helpers/errors/generateError';
 import { getLidarrSettings } from '@spotify-to-plex/plex-config/functions/getLidarrSettings';
 import { getSlskdSettings } from '@spotify-to-plex/plex-config/functions/getSlskdSettings';
+import { getYtdlpSettings } from '@spotify-to-plex/plex-config/functions/getYtdlpSettings';
 import { getStorageDir } from "@spotify-to-plex/shared-utils/utils/getStorageDir";
 import { SpotifyCredentials } from '@spotify-to-plex/shared-types/spotify/SpotifyCredentials';
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -15,6 +16,7 @@ export type SyncAvailability = {
     lidarr: boolean;
     mqtt: boolean;
     slskd: boolean;
+    ytdlp: boolean;
 }
 
 const router = createRouter<NextApiRequest, NextApiResponse>()
@@ -49,6 +51,15 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
             // Check MQTT - broker URL configured
             const mqttAvailable = !!process.env.MQTT_BROKER_URL;
 
+            // Check YT-DLP - enabled in settings AND API URL configured
+            let ytdlpAvailable = false;
+            try {
+                const ytdlpSettings = await getYtdlpSettings();
+                ytdlpAvailable = ytdlpSettings.enabled && !!ytdlpSettings.api_url;
+            } catch {
+                // YT-DLP settings not configured
+            }
+
             // Albums and playlists are always available (they don't require special setup)
             const availability: SyncAvailability = {
                 users: usersAvailable,
@@ -56,7 +67,8 @@ const router = createRouter<NextApiRequest, NextApiResponse>()
                 playlists: true,
                 lidarr: lidarrAvailable,
                 mqtt: mqttAvailable,
-                slskd: slskdAvailable
+                slskd: slskdAvailable,
+                ytdlp: ytdlpAvailable
             };
 
             res.status(200).json(availability);
