@@ -103,7 +103,7 @@ export default function Logs() {
     const renderOverview = () => {
         if (!data) return null;
 
-        const syncTypes: SyncType[] = ['users', 'albums', 'playlists', 'lidarr', 'slskd', 'mqtt'];
+        const syncTypes: SyncType[] = ['users', 'albums', 'playlists', 'lidarr', 'slskd', 'ytdlp', 'mqtt'];
 
         return (
             <Box sx={{ mb: 3 }}>

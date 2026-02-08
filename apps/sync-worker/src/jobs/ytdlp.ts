@@ -82,9 +82,12 @@ export async function syncYtdlp() {
 
         // Read SLSKD sync log to check which tracks were 'not_found'
         const slskdLogPath = join(getStorageDir(), "slskd_sync_log.json");
-        const slskdLogs: SlskdSyncLog[] = existsSync(slskdLogPath)
+        const slskdLogsRaw: Record<string, SlskdSyncLog> = existsSync(slskdLogPath)
             ? JSON.parse(readFileSync(slskdLogPath, "utf8"))
-            : [];
+            : {};
+
+        // Convert object to array
+        const slskdLogs = Object.values(slskdLogsRaw);
 
         // Build set of track keys that SLSKD didn't find
         const notFoundTracks = new Set(
