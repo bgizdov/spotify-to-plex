@@ -2,16 +2,19 @@ import { schedule } from 'node-cron';
 import { spawn } from 'node:child_process';
 import { getLidarrSettings } from '@spotify-to-plex/plex-config/functions/getLidarrSettings';
 import { getSlskdSettings } from '@spotify-to-plex/plex-config/functions/getSlskdSettings';
+import { getYtdlpSettings } from '@spotify-to-plex/plex-config/functions/getYtdlpSettings';
 
 const SYNC_SCHEDULE = '0 1 * * *'; // Every day at 01:00
 const LIDARR_SYNC_SCHEDULE = '0 7 * * *'; // Every day at 07:00 (6 hours after main sync)
 const SLSKD_SYNC_SCHEDULE = '0 6 * * *'; // Every day at 06:00 (5 hours after main sync)
+const YTDLP_SYNC_SCHEDULE = '0 7 * * *'; // Every day at 07:00 (1 hour after SLSKD)
 const MQTT_SYNC_SCHEDULE = '0 * * * *'; // Every hour
 
 console.log('🚀 Sync scheduler started');
 console.log(`⏰ Main sync schedule: ${SYNC_SCHEDULE}`);
 console.log(`⏰ Lidarr sync schedule: ${LIDARR_SYNC_SCHEDULE}`);
 console.log(`⏰ SLSKD sync schedule: ${SLSKD_SYNC_SCHEDULE}`);
+console.log(`⏰ YT-DLP sync schedule: ${YTDLP_SYNC_SCHEDULE}`);
 console.log(`⏰ MQTT sync schedule: ${MQTT_SYNC_SCHEDULE}`);
 
 // Function to run the sync command
@@ -138,6 +141,50 @@ async function runSlskdSync() {
     }
 }
 
+// NEW: Function to run YT-DLP sync
+async function runYtdlpSync() {
+    console.log(`\n📺 Checking YT-DLP sync settings at ${new Date().toISOString()}`);
+
+    try {
+        const settings = await getYtdlpSettings();
+
+        if (!settings.enabled) {
+            console.log('ℹ️ YT-DLP integration is not enabled. Skipping sync.');
+
+            return;
+        }
+
+        if (!settings.auto_sync) {
+            console.log('ℹ️ YT-DLP automatic synchronization is not enabled. Skipping sync.');
+
+            return;
+        }
+
+        const mode = settings.fallback_only ? 'fallback mode' : 'full mode';
+        console.log(`✅ YT-DLP auto-sync is enabled (${mode}). Starting sync...`);
+
+        const ytdlpProcess = spawn('npm', ['run', 'sync:ytdlp'], {
+            cwd: '/app/apps/sync-worker',
+            stdio: 'inherit',
+            shell: true
+        });
+
+        ytdlpProcess.on('exit', (code) => {
+            if (code === 0) {
+                console.log(`✅ YT-DLP sync completed successfully at ${new Date().toISOString()}`);
+            } else {
+                console.error(`❌ YT-DLP sync failed with exit code ${code} at ${new Date().toISOString()}`);
+            }
+        });
+
+        ytdlpProcess.on('error', (error) => {
+            console.error(`❌ Failed to start YT-DLP sync process:`, error);
+        });
+    } catch (error) {
+        console.error('❌ Error checking YT-DLP settings:', error);
+    }
+}
+
 // NEW: Function to run MQTT sync
 function runMqttSync() {
     console.log(`\n📡 Starting MQTT sync at ${new Date().toISOString()}`);
@@ -169,6 +216,14 @@ const slskdTask = schedule(SLSKD_SYNC_SCHEDULE, () => {
     timezone: process.env.TZ || 'UTC'
 });
 
+// NEW: Schedule YT-DLP sync task (runs 1 hour after SLSKD)
+const ytdlpTask = schedule(YTDLP_SYNC_SCHEDULE, () => {
+    runYtdlpSync();
+}, {
+    scheduled: true,
+    timezone: process.env.TZ || 'UTC'
+});
+
 // NEW: Schedule MQTT sync task
 const mqttTask = schedule(MQTT_SYNC_SCHEDULE, runMqttSync, {
     scheduled: true,
@@ -187,6 +242,7 @@ process.on('SIGTERM', () => {
     task.stop();
     lidarrTask.stop();
     slskdTask.stop();
+    ytdlpTask.stop();
     mqttTask.stop();
     process.exit(0);
 });
@@ -196,6 +252,7 @@ process.on('SIGINT', () => {
     task.stop();
     lidarrTask.stop();
     slskdTask.stop();
+    ytdlpTask.stop();
     mqttTask.stop();
     process.exit(0);
 });
