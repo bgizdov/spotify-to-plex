@@ -2,7 +2,7 @@ import { getStorageDir } from '@spotify-to-plex/shared-utils/utils/getStorageDir
 import { searchAlbum } from "@spotify-to-plex/plex-music-search/functions/searchAlbum";
 import { SearchResponse } from "@spotify-to-plex/plex-music-search/types/SearchResponse";
 import { getMusicSearchConfig } from "@spotify-to-plex/music-search/functions/getMusicSearchConfig";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { findMissingTidalAlbums } from "../utils/findMissingTidalAlbums";
 import { getCachedPlexTracks } from "../utils/getCachedPlexTracks";
@@ -17,6 +17,8 @@ import { loadSpotifyData } from "../utils/loadSpotifyData";
 import { getSettings } from "@spotify-to-plex/plex-config/functions/getSettings";
 import { LidarrAlbumData } from "@spotify-to-plex/shared-types/lidarr/LidarrAlbumData";
 import { SlskdTrackData } from "@spotify-to-plex/shared-types/slskd/SlskdTrackData";
+import { SlskdSyncLog } from "@spotify-to-plex/shared-types/slskd/SlskdSyncLog";
+import { getYtdlpSettings } from "@spotify-to-plex/plex-config/functions/getYtdlpSettings";
 
 export async function syncAlbums() {
     // Start sync type logging
@@ -177,13 +179,45 @@ export async function syncAlbums() {
             if (shouldUpdateCache) {
                 logComplete(itemLog)
             }
-
-            // Store the missing albums and tracks (always update these files)
-            writeFileSync(join(getStorageDir(), 'missing_albums_spotify.txt'), missingSpotifyAlbums.map(id => `https://open.spotify.com/album/${id}`).join('\n'))
-            writeFileSync(join(getStorageDir(), 'missing_albums_tidal.txt'), missingTidalAlbums.map(id => `https://tidal.com/browse/album/${id}`).join('\n'))
-            writeFileSync(join(getStorageDir(), 'missing_albums_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
-            writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
         }
+
+        // Store the missing albums and tracks after processing all albums (moved outside loop)
+        writeFileSync(join(getStorageDir(), 'missing_albums_spotify.txt'), missingSpotifyAlbums.map(id => `https://open.spotify.com/album/${id}`).join('\n'))
+        writeFileSync(join(getStorageDir(), 'missing_albums_tidal.txt'), missingTidalAlbums.map(id => `https://tidal.com/browse/album/${id}`).join('\n'))
+        writeFileSync(join(getStorageDir(), 'missing_albums_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
+        writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
+
+        // Generate missing_tracks_ytdlp.json based on fallback_only setting
+        const ytdlpSettings = await getYtdlpSettings();
+        let missingTracksYtdlp = missingTracksSlskd;
+
+        if (ytdlpSettings.enabled && ytdlpSettings.fallback_only) {
+            // Filter to only include tracks that SLSKD couldn't find
+            const slskdLogPath = join(getStorageDir(), 'slskd_sync_log.json');
+            if (existsSync(slskdLogPath)) {
+                const slskdLogsRaw: Record<string, SlskdSyncLog> = JSON.parse(readFileSync(slskdLogPath, 'utf8'));
+                const slskdLogs = Object.values(slskdLogsRaw);
+
+                // Build set of tracks that SLSKD didn't find
+                const notFoundInSlskd = new Set(
+                    slskdLogs
+                        .filter((log) => log.status === 'not_found')
+                        .map((log) => `${log.artist_name}||${log.track_name}`)
+                );
+
+                // Filter ytdlp tracks to only include those not found by SLSKD
+                missingTracksYtdlp = missingTracksSlskd.filter(track => {
+                    const trackKey = `${track.artist_name}||${track.track_name}`;
+                    return notFoundInSlskd.has(trackKey);
+                });
+
+                console.log(`YT-DLP fallback mode: ${missingTracksYtdlp.length} tracks not found by SLSKD (out of ${missingTracksSlskd.length} total missing tracks)`);
+            } else {
+                console.log('YT-DLP fallback mode enabled but no SLSKD log found, including all missing tracks');
+            }
+        }
+
+        writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracksYtdlp, null, 2))
 
         // Mark sync as complete
         completeSyncType('albums');
