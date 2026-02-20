@@ -185,11 +185,26 @@ export async function syncAlbums() {
         writeFileSync(join(getStorageDir(), 'missing_albums_spotify.txt'), missingSpotifyAlbums.map(id => `https://open.spotify.com/album/${id}`).join('\n'))
         writeFileSync(join(getStorageDir(), 'missing_albums_tidal.txt'), missingTidalAlbums.map(id => `https://tidal.com/browse/album/${id}`).join('\n'))
         writeFileSync(join(getStorageDir(), 'missing_albums_lidarr.json'), JSON.stringify(missingAlbumsLidarr, null, 2))
-        writeFileSync(join(getStorageDir(), 'missing_tracks_slskd.json'), JSON.stringify(missingTracksSlskd, null, 2))
+
+        // Merge with existing slskd tracks (written by playlists.ts, which runs before this)
+        const slskdPath = join(getStorageDir(), 'missing_tracks_slskd.json');
+        let existingSlskdTracks: SlskdTrackData[] = [];
+        if (existsSync(slskdPath)) {
+            try {
+                existingSlskdTracks = JSON.parse(readFileSync(slskdPath, 'utf8'));
+            } catch (_e) { /* start fresh if parse fails */ }
+        }
+        const mergedSlskdTracks = [...existingSlskdTracks];
+        for (const track of missingTracksSlskd) {
+            if (!mergedSlskdTracks.some(t => t.spotify_id === track.spotify_id)) {
+                mergedSlskdTracks.push(track);
+            }
+        }
+        writeFileSync(slskdPath, JSON.stringify(mergedSlskdTracks, null, 2));
 
         // Generate missing_tracks_ytdlp.json based on fallback_only setting
         const ytdlpSettings = await getYtdlpSettings();
-        let missingTracksYtdlp = missingTracksSlskd;
+        let missingTracksYtdlp = mergedSlskdTracks;
 
         if (ytdlpSettings.enabled && ytdlpSettings.fallback_only) {
             // Filter to only include tracks that SLSKD couldn't find
@@ -206,18 +221,32 @@ export async function syncAlbums() {
                 );
 
                 // Filter ytdlp tracks to only include those not found by SLSKD
-                missingTracksYtdlp = missingTracksSlskd.filter(track => {
+                missingTracksYtdlp = mergedSlskdTracks.filter(track => {
                     const trackKey = `${track.artist_name}||${track.track_name}`;
                     return notFoundInSlskd.has(trackKey);
                 });
 
-                console.log(`YT-DLP fallback mode: ${missingTracksYtdlp.length} tracks not found by SLSKD (out of ${missingTracksSlskd.length} total missing tracks)`);
+                console.log(`YT-DLP fallback mode: ${missingTracksYtdlp.length} tracks not found by SLSKD (out of ${mergedSlskdTracks.length} total missing tracks)`);
             } else {
                 console.log('YT-DLP fallback mode enabled but no SLSKD log found, including all missing tracks');
             }
         }
 
-        writeFileSync(join(getStorageDir(), 'missing_tracks_ytdlp.json'), JSON.stringify(missingTracksYtdlp, null, 2))
+        // Merge with existing ytdlp tracks (written by playlists.ts, which runs before this)
+        const ytdlpPath = join(getStorageDir(), 'missing_tracks_ytdlp.json');
+        let existingYtdlpTracks: SlskdTrackData[] = [];
+        if (existsSync(ytdlpPath)) {
+            try {
+                existingYtdlpTracks = JSON.parse(readFileSync(ytdlpPath, 'utf8'));
+            } catch (_e) { /* start fresh if parse fails */ }
+        }
+        const mergedYtdlpTracks = [...existingYtdlpTracks];
+        for (const track of missingTracksYtdlp) {
+            if (!mergedYtdlpTracks.some(t => t.spotify_id === track.spotify_id)) {
+                mergedYtdlpTracks.push(track);
+            }
+        }
+        writeFileSync(ytdlpPath, JSON.stringify(mergedYtdlpTracks, null, 2));
 
         // Mark sync as complete
         completeSyncType('albums');
