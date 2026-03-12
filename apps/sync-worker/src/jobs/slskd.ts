@@ -17,6 +17,43 @@ import type { SlskdMusicSearchConfig, SlskdTrack } from "@spotify-to-plex/slskd-
 import { getMusicSearchConfig } from "@spotify-to-plex/music-search/functions/getMusicSearchConfig";
 import { setMusicSearchConfig as setMusicSearchMatchFilters } from "@spotify-to-plex/music-search/functions/setMusicSearchConfig";
 
+/**
+ * Check if a file is from a large folder (compilation, box set, VA, etc.)
+ * These folders often trigger slskd to download entire folder contents instead of single file
+ */
+function isFromLargeFolder(filename: string): boolean {
+    const path = filename.replace(/\\/g, '/');
+    const parts = path.split('/').filter(Boolean);
+    
+    if (parts.length < 2) return false;
+    
+    // Get the parent folder name (second to last part)
+    const parentFolder = parts.at(-2)?.toLowerCase() || '';
+    
+    // Patterns indicating large compilations/box sets
+    const largeFolderPatterns = [
+        'various', 'va ', 'v.a.', 'compilation', 'box', 'mega',
+        'collection', 'anthology', 'greatest hits', 'best of',
+        'ultimate', 'essential', 'mixed', 'mixes', 'dj ',
+        'volume', 'vol.', 'vol ', 'series', 'complete',
+        '[', ']', '(', ')' // Bracketed names often indicate compilations
+    ];
+    
+    // Check if parent folder matches any pattern
+    for (const pattern of largeFolderPatterns) {
+        if (parentFolder.includes(pattern)) {
+            return true;
+        }
+    }
+    
+    // Check for @@ prefix (often used for large shares)
+    if (parentFolder.startsWith('@@')) {
+        return true;
+    }
+    
+    return false;
+}
+
 export async function syncSlskd() {
     console.log('Starting SLSKD sync...');
 
@@ -80,9 +117,25 @@ export async function syncSlskd() {
         const { putLog, logComplete } = getNestedSyncLogsForType('slskd');
         const syncLog = putLog('slskd-sync', 'SLSKD Sync');
 
-        // Read existing SLSKD logs
+        // Read existing SLSKD logs (persist across runs to avoid re-queuing)
         const slskdLogsPath = join(getStorageDir(), 'slskd_sync_log.json');
-        const slskdLogs: Record<string, SlskdSyncLog> = {};
+        let slskdLogs: Record<string, SlskdSyncLog> = {};
+
+        if (existsSync(slskdLogsPath)) {
+            try {
+                slskdLogs = JSON.parse(readFileSync(slskdLogsPath, 'utf8'));
+            } catch {
+                slskdLogs = {};
+            }
+        }
+
+        // Build a set of already-queued tracks to skip on re-runs
+        const alreadyQueued = new Set<string>();
+        for (const entry of Object.values(slskdLogs)) {
+            if (entry.status === 'queued') {
+                alreadyQueued.add(`${entry.artist_name}|${entry.track_name}`);
+            }
+        }
 
         // Setup base URL for API operations
         const baseUrl = settings.url.endsWith('/') ? settings.url.slice(0, -1) : settings.url;
@@ -133,6 +186,13 @@ export async function syncSlskd() {
             };
 
             try {
+                // Skip tracks that were already successfully queued in a previous run
+                if (alreadyQueued.has(trackKey)) {
+                    console.log(`⏭️  Already queued, skipping: ${track.artist_name} - ${track.track_name}`);
+                    successCount++;
+                    continue;
+                }
+
                 // Skip tracks without proper info
                 if (!track.artist_name || !track.track_name) {
                     trackLog.status = 'error';
@@ -169,9 +229,11 @@ export async function syncSlskd() {
                     continue;
                 }
 
-                // Filter results - skip locked files only
+                // Filter results - skip locked files and files from compilation/large album folders
+                // This avoids slskd downloading entire folders instead of single files
                 const candidateFiles: SlskdTrack[] = searchResult.result
                     .filter((file: SlskdTrack) => !file.isLocked)
+                    .filter((file: SlskdTrack) => !isFromLargeFolder(file.filename))
                     .slice(0, settings.download_attempts); // Limit to download attempts
 
                 if (candidateFiles.length === 0) {
