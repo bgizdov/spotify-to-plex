@@ -133,6 +133,9 @@ export async function syncPlaylists() {
                 // eslint-disable-next-line prefer-const
                 let { result, add } = await getCachedPlexTracks(plexSearchConfig, data)
 
+                // Track how many tracks were found before searching, to detect new finds
+                const cachedFoundCount = result.filter((r: SearchResponse) => r.result.length > 0).length;
+
                 // eslint-disable-next-line unicorn/consistent-destructuring
                 const toSearchItems = data.tracks.filter(track => !result.some((item: SearchResponse) => item.id == track.id))
                 if (toSearchItems.length > 0) {
@@ -143,10 +146,15 @@ export async function syncPlaylists() {
                     add(searchResult, 'plex')
                 }
 
+                // Update playlist if sync interval elapsed OR if new tracks became available in Plex
+                // (e.g. slskd downloaded them and Plex scanned them since last run)
+                const newFoundCount = result.filter((r: SearchResponse) => r.result.length > 0).length;
+                const hasNewPlexTracks = newFoundCount > cachedFoundCount;
+
                 ////////////
-                // Put plex playlist (only if sync interval has elapsed)
+                // Put plex playlist (if sync interval elapsed, or new tracks found in Plex)
                 ////////////
-                if (shouldUpdatePlex) {
+                if (shouldUpdatePlex || hasNewPlexTracks) {
                     await putPlexPlaylist(id, plexPlaylist, result, title, data.image)
                 }
 
@@ -224,7 +232,7 @@ export async function syncPlaylists() {
                 /////////////////////////////
                 // Store logs (only mark complete if Plex was updated)
                 /////////////////////////////
-                if (shouldUpdatePlex) {
+                if (shouldUpdatePlex || hasNewPlexTracks) {
                     logComplete(itemLog)
                 }
 

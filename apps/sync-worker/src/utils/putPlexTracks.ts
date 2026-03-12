@@ -24,7 +24,7 @@ export async function putPlexPlaylist(id: string, plexPlaylist: Playlist | undef
     }).filter(item => !!item);
 
     if (plexTracks.length > 0) {
-        const firstItem = plexTracks.shift();
+        const firstItem = plexTracks[0];
         if (!firstItem)
             return;
 
@@ -42,7 +42,7 @@ export async function putPlexPlaylist(id: string, plexPlaylist: Playlist | undef
             // Clear items from playlist
             await removeItemsFromPlaylist(settings, plexPlaylist.ratingKey, []);
 
-            // Add all items
+            // Add all items (was using shift() which silently dropped the first track)
             await addItemsToPlaylist(settings, plexPlaylist.ratingKey, plexTracks);
 
             if (plexPlaylist.title != title && title)
@@ -57,7 +57,8 @@ export async function putPlexPlaylist(id: string, plexPlaylist: Playlist | undef
             console.log(`Create new playlist`);
             const uri = getPlexUri(settings, firstItem.key, firstItem.source);
             const playlistId = await storePlaylist(settings, title, uri);
-            await addItemsToPlaylist(settings, playlistId, plexTracks);
+            // storePlaylist already adds firstItem via URI, so only add the rest
+            await addItemsToPlaylist(settings, playlistId, plexTracks.slice(1));
 
             try {
                 await putPlaylistPoster(playlistId, thumb)
