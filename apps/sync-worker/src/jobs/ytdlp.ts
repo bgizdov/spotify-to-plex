@@ -2,6 +2,7 @@
 import { getYtdlpSettings } from "@spotify-to-plex/plex-config/functions/getYtdlpSettings";
 import { getStorageDir } from "@spotify-to-plex/shared-utils/utils/getStorageDir";
 import { SlskdTrackData } from "@spotify-to-plex/shared-types/slskd/SlskdTrackData";
+import { SlskdSyncLog } from "@spotify-to-plex/shared-types/slskd/SlskdSyncLog";
 import { YtdlpClient } from "@spotify-to-plex/shared-utils/ytdlp/client";
 import { waitForDownloadComplete } from "@spotify-to-plex/shared-utils/ytdlp/waitForDownloadComplete";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -62,27 +63,39 @@ export async function syncYtdlp() {
         }
 
         const content = readFileSync(tracksPath, "utf8");
-        let tracks: SlskdTrackData[] = [];
+        let allTracks: SlskdTrackData[] = [];
 
         try {
-            tracks = JSON.parse(content);
+            allTracks = JSON.parse(content);
         } catch (_e) {
             console.error("❌ Failed to parse missing tracks JSON");
             throw new Error("Failed to parse missing tracks JSON");
+        }
+
+        // Apply fallback filter at runtime using the current (post-SLSKD) sync log
+        let tracks = allTracks;
+        if (settings.fallback_only) {
+            const slskdLogPath = join(getStorageDir(), 'slskd_sync_log.json');
+            if (existsSync(slskdLogPath)) {
+                const slskdLogsRaw: Record<string, SlskdSyncLog> = JSON.parse(readFileSync(slskdLogPath, 'utf8'));
+                const notFoundInSlskd = new Set(
+                    Object.values(slskdLogsRaw)
+                        .filter((log) => log.status === 'not_found')
+                        .map((log) => `${log.artist_name}||${log.track_name}`)
+                );
+                tracks = allTracks.filter(track => notFoundInSlskd.has(`${track.artist_name}||${track.track_name}`));
+                console.log(`🔄 Fallback mode: ${tracks.length} tracks not found by SLSKD (out of ${allTracks.length} total missing tracks)`);
+            } else {
+                console.log(`🔄 Fallback mode enabled but no SLSKD log found, processing all ${allTracks.length} missing tracks`);
+            }
+        } else {
+            console.log(`🔄 Full mode: Processing all ${tracks.length} missing tracks`);
         }
 
         if (tracks.length === 0) {
             console.log("ℹ️  No missing tracks to process");
             completeSyncType("ytdlp");
             return;
-        }
-
-        console.log(`📋 Found ${tracks.length} tracks to process`);
-
-        if (settings.fallback_only) {
-            console.log(`🔄 Fallback mode: Processing tracks not found by SLSKD`);
-        } else {
-            console.log(`🔄 Full mode: Processing all missing tracks`);
         }
 
         // Initialize logs
@@ -96,7 +109,7 @@ export async function syncYtdlp() {
         let successCount = 0;
         let failureCount = 0;
 
-        // Process tracks (filtering already done during file generation)
+        // Process tracks
         for (let i = 0; i < tracks.length; i++) {
             const track = tracks[i];
             if (!track) continue;

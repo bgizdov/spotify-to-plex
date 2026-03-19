@@ -17,8 +17,6 @@ import { loadSpotifyData } from "../utils/loadSpotifyData";
 import { getSettings } from "@spotify-to-plex/plex-config/functions/getSettings";
 import { LidarrAlbumData } from "@spotify-to-plex/shared-types/lidarr/LidarrAlbumData";
 import { SlskdTrackData } from "@spotify-to-plex/shared-types/slskd/SlskdTrackData";
-import { SlskdSyncLog } from "@spotify-to-plex/shared-types/slskd/SlskdSyncLog";
-import { getYtdlpSettings } from "@spotify-to-plex/plex-config/functions/getYtdlpSettings";
 
 export async function syncAlbums() {
     // Start sync type logging
@@ -202,37 +200,8 @@ export async function syncAlbums() {
         }
         writeFileSync(slskdPath, JSON.stringify(mergedSlskdTracks, null, 2));
 
-        // Generate missing_tracks_ytdlp.json based on fallback_only setting
-        const ytdlpSettings = await getYtdlpSettings();
-        let missingTracksYtdlp = mergedSlskdTracks;
-
-        if (ytdlpSettings.enabled && ytdlpSettings.fallback_only) {
-            // Filter to only include tracks that SLSKD couldn't find
-            const slskdLogPath = join(getStorageDir(), 'slskd_sync_log.json');
-            if (existsSync(slskdLogPath)) {
-                const slskdLogsRaw: Record<string, SlskdSyncLog> = JSON.parse(readFileSync(slskdLogPath, 'utf8'));
-                const slskdLogs = Object.values(slskdLogsRaw);
-
-                // Build set of tracks that SLSKD didn't find
-                const notFoundInSlskd = new Set(
-                    slskdLogs
-                        .filter((log) => log.status === 'not_found')
-                        .map((log) => `${log.artist_name}||${log.track_name}`)
-                );
-
-                // Filter ytdlp tracks to only include those not found by SLSKD
-                missingTracksYtdlp = mergedSlskdTracks.filter(track => {
-                    const trackKey = `${track.artist_name}||${track.track_name}`;
-                    return notFoundInSlskd.has(trackKey);
-                });
-
-                console.log(`YT-DLP fallback mode: ${missingTracksYtdlp.length} tracks not found by SLSKD (out of ${mergedSlskdTracks.length} total missing tracks)`);
-            } else {
-                console.log('YT-DLP fallback mode enabled but no SLSKD log found, including all missing tracks');
-            }
-        }
-
         // Merge with existing ytdlp tracks (written by playlists.ts, which runs before this)
+        // Fallback filtering happens in ytdlp.ts at sync time using the fresh SLSKD log
         const ytdlpPath = join(getStorageDir(), 'missing_tracks_ytdlp.json');
         let existingYtdlpTracks: SlskdTrackData[] = [];
         if (existsSync(ytdlpPath)) {
@@ -241,7 +210,7 @@ export async function syncAlbums() {
             } catch (_e) { /* start fresh if parse fails */ }
         }
         const mergedYtdlpTracks = [...existingYtdlpTracks];
-        for (const track of missingTracksYtdlp) {
+        for (const track of mergedSlskdTracks) {
             if (!mergedYtdlpTracks.some(t => t.spotify_id === track.spotify_id)) {
                 mergedYtdlpTracks.push(track);
             }
