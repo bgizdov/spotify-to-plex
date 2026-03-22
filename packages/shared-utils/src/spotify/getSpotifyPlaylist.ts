@@ -6,8 +6,9 @@ export async function getSpotifyPlaylist(api: SpotifyApi, id: string, simplified
 
 
     try {
-        const tokenInfo = await api.getAccessToken();
         const result = await api.playlists.getPlaylist(id)
+        const tokenInfo = await api.getAccessToken();
+        console.log(`🔍 [DEBUG] Playlist "${result.name}": total=${result.tracks.total}, fetched=${result.tracks.items.length}, next=${result.tracks.next ? 'YES' : 'NO'}, token=${tokenInfo?.access_token ? 'PRESENT' : 'MISSING'}`);
         const playlist: GetSpotifyPlaylist = {
             type: "spotify-playlist",
             id: result.id,
@@ -54,7 +55,7 @@ export async function getSpotifyPlaylist(api: SpotifyApi, id: string, simplified
             });
 
             if (!response.ok) {
-                console.error(`❌ Fetch failed: ${response.status} ${response.statusText}`);
+                console.error(`❌ Fetch failed: ${response.status} ${response.statusText}, token was: ${tokenInfo?.access_token ? 'PRESENT' : 'MISSING (this is the bug!)'}`);
                 break;
             }
 
