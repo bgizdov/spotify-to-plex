@@ -7,8 +7,10 @@ export async function getSpotifyPlaylist(api: SpotifyApi, id: string, simplified
 
     try {
         const result = await api.playlists.getPlaylist(id)
+        // getAccessToken() must be called AFTER the first API call.
+        // ClientCredentialsStrategy.getAccessToken() only reads from cache — it won't fetch
+        // if no prior API call has been made, returning null and breaking pagination.
         const tokenInfo = await api.getAccessToken();
-        console.log(`🔍 [DEBUG] Playlist "${result.name}": total=${result.tracks.total}, fetched=${result.tracks.items.length}, next=${result.tracks.next ? 'YES' : 'NO'}, token=${tokenInfo?.access_token ? 'PRESENT' : 'MISSING'}`);
         const playlist: GetSpotifyPlaylist = {
             type: "spotify-playlist",
             id: result.id,
@@ -55,7 +57,7 @@ export async function getSpotifyPlaylist(api: SpotifyApi, id: string, simplified
             });
 
             if (!response.ok) {
-                console.error(`❌ Fetch failed: ${response.status} ${response.statusText}, token was: ${tokenInfo?.access_token ? 'PRESENT' : 'MISSING (this is the bug!)'}`);
+                console.error(`❌ Fetch failed: ${response.status} ${response.statusText}`);
                 break;
             }
 
